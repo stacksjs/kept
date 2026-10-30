@@ -121,6 +121,10 @@ export function createApi(options: ApiOptions) {
     saveNote: async (note: { id?: number, body: string, pinned?: boolean, note_folder_id?: number | null }) =>
       (note.id ? await put<{ note: Note }>(`/api/notes/${note.id}`, note) : await post<{ note: Note }>('/api/notes', note)).note,
     deleteNote: (id: number) => del(`/api/notes/${id}`),
+    /** Recently Deleted: the server keeps deleted notes for 30 days. */
+    notesTrash: () => get<{ notes: Note[], days: number }>('/api/notes/trash'),
+    restoreNote: async (id: number) => (await post<{ note: Note }>(`/api/notes/${id}/restore`)).note,
+    purgeNote: (id: number) => del(`/api/notes/${id}/purge`),
     noteFolders: async () => row<NoteFolder[]>(await get('/api/note-folders')),
     createNoteFolder: async (title: string) => row<NoteFolder>(await post('/api/note-folders', { title })),
     deleteNoteFolder: (id: number) => del(`/api/note-folders/${id}`),

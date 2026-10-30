@@ -40,6 +40,10 @@ route.get('/lists/{list}', 'Actions/Lists/ListShowAction').middleware('auth')
 route.post('/todos/{id}/complete', 'Actions/Todos/CompleteTodoAction').middleware('auth')
 route.post('/todos/{id}/reopen', 'Actions/Todos/ReopenTodoAction').middleware('auth')
 
+// Fixed segments first: `/notes/trash` must not be read as a note id.
+route.get('/notes/trash', 'Actions/Notes/NoteTrashAction').middleware('auth')
+route.post('/notes/{id}/restore', 'Actions/Notes/NoteRestoreAction').middleware('auth')
+route.delete('/notes/{id}/purge', 'Actions/Notes/NotePurgeAction').middleware('auth')
 route.post('/notes', 'Actions/Notes/NoteSaveAction').middleware('auth')
 route.put('/notes/{id}', 'Actions/Notes/NoteSaveAction').middleware('auth')
 

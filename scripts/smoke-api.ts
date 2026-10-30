@@ -103,6 +103,18 @@ check('creates a note titled from its first line', note.json?.note?.title === 'T
 const edited = await owner.call('PUT', `/api/notes/${note.json?.note?.id}`, { body: 'Renamed\nline two' })
 check('editing a note retitles it', edited.json?.note?.title === 'Renamed', edited.json)
 
+// Recently Deleted: soft delete, list, restore, purge
+const gone = await owner.call('DELETE', `/api/notes/${note.json?.note?.id}`)
+check('deleting a note moves it to Recently Deleted', gone.status < 300, gone.json)
+const trash = await owner.call('GET', '/api/notes/trash')
+check('the trash lists it', trash.json?.notes?.some((n: any) => n.id === note.json?.note?.id), trash.json)
+const back = await owner.call('POST', `/api/notes/${note.json?.note?.id}/restore`)
+check('restoring brings it back', back.status === 200 && back.json?.note?.id === note.json?.note?.id, back.json)
+check('a stranger cannot restore my note', (await stranger.call('POST', `/api/notes/${note.json?.note?.id}/restore`)).status === 404)
+await owner.call('DELETE', `/api/notes/${note.json?.note?.id}`)
+const purged = await owner.call('DELETE', `/api/notes/${note.json?.note?.id}/purge`)
+check('purge removes it for good', purged.status === 200 && (await owner.call('GET', '/api/notes/trash')).json?.notes?.length === 0, purged.json)
+
 // Prompt library + sharing
 const lib = await owner.call('POST', '/api/prompt-libraries', { title: 'Writing' })
 const libId = (lib.json?.data ?? lib.json)?.id
