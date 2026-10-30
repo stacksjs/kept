@@ -17,7 +17,9 @@ const { open = false, title = '', drawer = false } = defineProps<SheetProps>()
   effect(() => {
     if (shIsOpen()) {
       shReturn = activeElement()
+      // Twice: once as soon as the panel exists, and once after the entrance animation has started, in case a menu that opened this sheet was still closing.
       void nextTick(() => focusFirst(shPanel.current))
+      setTimeout(() => { if (shPanel.current && !shPanel.current.contains(activeElement())) focusFirst(shPanel.current) }, 80)
     }
     else if (shReturn) {
       const back = shReturn

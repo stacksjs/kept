@@ -132,7 +132,7 @@
         </div>
       </div>
 
-      <EmptyState :if="tpTasks.isEmpty() && tpTasks.loaded() && !tpAreaProjects().length && !tpTasks.drafting() && !tpIsUpcoming()" :icon="tpEmptyIcon()" :text="tpEmptyText()" />
+      <EmptyState :if="tpTasks.isEmpty() && tpTasks.loaded() && !tpAreaProjects().length && !tpTasks.drafting() && !tpIsUpcoming()" :icon="tpEmptyIcon()" :big="true" :text="tpEmptyText()" />
       <div class="k-gap"></div>
     </div>
   </div>

@@ -1,13 +1,15 @@
 <script>
-interface EmptyStateProps { icon?: string, text?: string }
-const { icon = 'i-hugeicons-checkmark-circle-02', text = '' } = defineProps<EmptyStateProps>()
+interface EmptyStateProps { icon?: string, text?: string, big?: boolean }
+const { icon = 'i-hugeicons-checkmark-circle-02', text = '', big = false } = defineProps<EmptyStateProps>()
 </script>
 <script client>
   const esIcon = useReactiveProp('icon', 'i-hugeicons-checkmark-circle-02')
   const esText = useReactiveProp('text', '')
+  const esBig = useReactiveProp('big', false)
+  const esArt = derived(() => (esBig() === true || esBig() === 'true' ? 'k-empty-art' : ''))
 </script>
 <div class="k-empty">
-  <i class="k-ico" :class="esIcon()" aria-hidden="true"></i>
+  <i class="k-ico" :class="[esIcon(), esArt()]" aria-hidden="true"></i>
   <p :text="esText()"></p>
   <slot />
 </div>

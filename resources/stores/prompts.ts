@@ -154,6 +154,7 @@ defineStore('prompts', () => {
   // Use sheet
 
   function startUse(): void {
+    if (!draft() && !selected()) return
     values.set({})
     copied.set(false)
     useOpen.set(true)

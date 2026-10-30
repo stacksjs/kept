@@ -362,7 +362,7 @@ useHead({
   .k-proj-head button { font: inherit; text-align: left; }
   .k-show-more { color: var(--text-3); font-size: 15px; padding: 6px 0; }
   .k-show-more:hover { color: var(--text-2); }
-  .k-empty-art { width: 96px; height: 96px; opacity: .12; }
+  .k-empty .k-empty-art { width: 96px; height: 96px; opacity: .12; }
   .k-quick-scrim { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-start; justify-content: center; padding-top: 16vh; background: rgb(10 14 22 / .25); }
   .k-quick-card { width: min(560px, calc(100vw - 32px)); padding: 16px 18px 12px; border-radius: 14px; background: var(--bg-card, #fff); box-shadow: var(--shadow); animation: k-rise .16s ease; }
   html.dark .k-quick-card { --bg-card: #2a2c30; }
