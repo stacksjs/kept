@@ -1,11 +1,26 @@
 import { describe, expect, it } from 'bun:test'
-import { filterNotes, groupNotes, matchSnippet, normalizeNote } from '../../resources/functions/kept/notes'
+import { filterNotes, findLinked, groupNotes, matchSnippet, noteTags, normalizeNote, tagCounts } from '../../resources/functions/kept/notes'
 import { filledSegments, filterPrompts, normalizePrompt, publicLinkUrl, segments } from '../../resources/functions/kept/promptview'
 import type { Note, Prompt } from '../../resources/functions/kept/types'
 
 const note = (id: number, patch: Partial<Note> = {}): Note => ({ id, title: `Note ${id}`, snippet: '', body: `Note ${id}\nbody`, pinned: false, note_folder_id: null, updated_at: `2026-10-${String(10 + id).padStart(2, '0')}T10:00:00Z`, ...patch })
 
 describe('notes', () => {
+  it('finds #tags but not headings, and counts them', () => {
+    expect(noteTags('# Heading\nplan #Trip and (#food) #a_b-c\nnot#tag')).toEqual(['trip', 'food', 'a_b-c'])
+    expect(noteTags('plain')).toEqual([])
+    const list = [note(1, { body: 'x #a #b' }), note(2, { body: 'y #a' })]
+    expect(tagCounts(list)).toEqual([{ name: 'a', count: 2 }, { name: 'b', count: 1 }])
+    expect(filterNotes(list, 'tag:b', '').map(n => n.id)).toEqual([1])
+  })
+
+  it('resolves a note link by title', () => {
+    const list = [note(1, { title: 'Trip plan' }), note(2, { title: 'Groceries' })]
+    expect(findLinked(list, 'groceries')?.id).toBe(2)
+    expect(findLinked(list, 'Trip')?.id).toBe(1)
+    expect(findLinked(list, 'Nothing')).toBeNull()
+    expect(findLinked(list, '  ')).toBeNull()
+  })
   it('turns the server row into a note', () => {
     expect(normalizeNote({ id: 1, pinned: 1, body: null, title: null }).pinned).toBe(true)
     expect(normalizeNote({ id: 1, pinned: 0 }).body).toBe('')

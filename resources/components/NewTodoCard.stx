@@ -1,0 +1,55 @@
+<script client>
+  import { focusField } from '../functions/kept/client'
+  import { whenPatch } from '../functions/kept/todos'
+
+  const ntTasks = useStore('tasks')
+  const ntTitle = state('')
+  const ntNotes = state('')
+  const ntWhen = state('')
+  const ntDate = state('')
+  const ntChoices = [
+    { id: 'today', label: 'Today', icon: 'i-f7-star-fill', tone: 'k-gl-today' },
+    { id: 'evening', label: 'This Evening', icon: 'i-f7-moon-fill', tone: 'k-gl-evening' },
+    { id: 'anytime', label: 'Anytime', icon: '', tone: '' },
+    { id: 'someday', label: 'Someday', icon: '', tone: '' },
+  ]
+
+  effect(() => { if (ntTasks.drafting()) focusField('draft-title') })
+
+  function ntPick(id) { ntWhen.set(ntWhen() === id ? '' : id); ntDate.set('') }
+  function ntSetDate(event) { ntDate.set(event.target.value); if (event.target.value) ntWhen.set('') }
+  function ntReset() { ntTitle.set(''); ntNotes.set(''); ntWhen.set(''); ntDate.set('') }
+  async function ntAdd(stayOpen) {
+    const title = ntTitle().trim()
+    if (!title) return
+    const extra = { notes: ntNotes() }
+    if (ntDate()) Object.assign(extra, whenPatch({ date: ntDate() }))
+    else if (ntWhen()) Object.assign(extra, whenPatch(ntWhen()))
+    const todo = await ntTasks.create(title, extra)
+    ntReset()
+    if (!stayOpen || !todo) { ntTasks.drafting.set(false); return }
+    focusField('draft-title')
+  }
+  function ntSubmit(event) { event.preventDefault(); ntAdd(false) }
+  function ntKey(event) {
+    if (event.key === 'Escape') { event.stopPropagation(); ntReset(); ntTasks.drafting.set(false) }
+    else if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); ntAdd(true) }
+  }
+  function ntCancel() { ntReset(); ntTasks.drafting.set(false) }
+</script>
+
+<form class="k-card" :if="ntTasks.drafting()" aria-label="New to-do" @submit="ntSubmit($event)" @keydown="ntKey($event)">
+  <label class="sr-only" for="nt-title">Title</label>
+  <input id="nt-title" class="k-card-title" data-focus="draft-title" type="text" x-model="ntTitle" placeholder="New to-do" autocomplete="off" enterkeyhint="done">
+  <label class="sr-only" for="nt-notes">Notes</label>
+  <textarea id="nt-notes" class="k-notes" style="min-height: 28px; padding: 4px 0; font-size: 14px" x-model="ntNotes" placeholder="Notes"></textarea>
+  <div class="k-pills" role="group" aria-label="When" style="margin-top: 6px">
+    <button type="button" class="k-pill" :for="choice in ntChoices" :key="choice.id" :aria-pressed="ntWhen() === choice.id ? 'true' : 'false'" style="min-height: 30px" @click="ntPick(choice.id)"><i class="k-ico" :if="choice.icon" :class="[choice.icon, choice.tone]" style="width: 14px; height: 14px" aria-hidden="true"></i><span :text="choice.label"></span></button>
+    <label class="sr-only" for="nt-date">On a date</label>
+    <input id="nt-date" class="k-input" type="date" style="width: auto; min-height: 30px; padding: 2px 10px; border-radius: 999px" :value="ntDate()" @change="ntSetDate($event)">
+  </div>
+  <div class="k-card-tools" style="justify-content: flex-end; gap: 8px">
+    <button type="button" class="k-btn k-btn-quiet" style="min-height: 30px" @click="ntCancel()">Cancel</button>
+    <button type="submit" class="k-btn k-btn-primary" style="min-height: 30px">Add to-do</button>
+  </div>
+</form>

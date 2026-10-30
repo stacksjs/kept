@@ -20,6 +20,14 @@ describe('router', () => {
     expect(formatRoute({ section: 'prompts', library: 4, item: null })).toBe('#/prompts/4')
   })
 
+  it('reads and writes tag and trash folders', () => {
+    expect(parseRoute('#/notes/trash')).toEqual({ section: 'notes', folder: 'trash', item: null })
+    expect(parseRoute('#/notes/trash/8')).toEqual({ section: 'notes', folder: 'trash', item: 8 })
+    expect(parseRoute('#/notes/tag/trip/3')).toEqual({ section: 'notes', folder: 'tag:trip', item: 3 })
+    expect(formatRoute({ section: 'notes', folder: 'tag:big trip', item: null })).toBe('#/notes/tag/big%20trip')
+    expect(formatRoute({ section: 'notes', folder: 'trash', item: 2 })).toBe('#/notes/trash/2')
+  })
+
   it('falls back to home for anything it does not know', () => {
     expect(parseRoute('')).toEqual(HOME)
     expect(parseRoute('#/')).toEqual(HOME)

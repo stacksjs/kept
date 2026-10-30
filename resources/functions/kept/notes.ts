@@ -1,3 +1,4 @@
+import type { NoteFolderKey } from './router'
 import type { Note } from './types'
 
 /** The server sends `pinned` as 0 or 1; make it a boolean. */
@@ -20,10 +21,11 @@ export function groupNotes(notes: Note[]): NoteSection[] {
 }
 
 /** The notes in a folder (or all of them) that contain every word of the search. */
-export function filterNotes(notes: Note[], folder: 'all' | number, search: string): Note[] {
+export function filterNotes(notes: Note[], folder: NoteFolderKey, search: string): Note[] {
   const words = search.toLowerCase().split(/\s+/).filter(Boolean)
   return notes.filter((note) => {
-    if (folder !== 'all' && note.note_folder_id !== folder) return false
+    if (typeof folder === 'number' && note.note_folder_id !== folder) return false
+    if (typeof folder === 'string' && folder.startsWith('tag:') && !noteTags(note.body).includes(folder.slice(4))) return false
     if (!words.length) return true
     const text = `${note.title}\n${note.body}`.toLowerCase()
     return words.every(word => text.includes(word))
@@ -39,4 +41,27 @@ export function matchSnippet(note: Note, search: string): string {
   if (at < 0) return note.snippet
   const from = Math.max(0, at - 24)
   return `${from > 0 ? '...' : ''}${text.slice(from, at + needle.length + 60).trim()}`
+}
+
+/**
+ * The `#tags` in a note, lower case and without repeats. A `#` followed by a space
+ * is a Markdown heading, not a tag, and a tag must follow a space, a bracket or the start of a line.
+ */
+export function noteTags(body: string): string[] {
+  const found = new Set<string>()
+  for (const match of body.matchAll(/(^|[\s(])#([\p{L}\p{N}_-]+)/gu)) found.add(match[2]!.toLowerCase())
+  return [...found]
+}
+
+export function tagCounts(notes: Note[]): Array<{ name: string, count: number }> {
+  const counts = new Map<string, number>()
+  for (const note of notes) for (const tag of noteTags(note.body)) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+  return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** The note a `[[Title]]` link points to: an exact (case-insensitive) title match, else the first note whose title starts with it. */
+export function findLinked(notes: Note[], title: string): Note | null {
+  const wanted = title.trim().toLowerCase()
+  if (!wanted) return null
+  return notes.find(note => note.title.toLowerCase() === wanted) ?? notes.find(note => note.title.toLowerCase().startsWith(wanted)) ?? null
 }

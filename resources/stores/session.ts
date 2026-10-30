@@ -5,7 +5,7 @@ import { ApiError } from '../functions/kept/api'
 interface User { id: number, email: string, name: string }
 
 /** Who is signed in, and the sign-in, sign-up and sign-out flows. The token itself lives in `functions/kept/session.ts`. */
-defineStore('keptSession', () => {
+defineStore('account', () => {
   const user = state<User | null>(null)
   const ready = state(false)
   const busy = state(false)
@@ -29,7 +29,7 @@ defineStore('keptSession', () => {
     try { user.set(await api.me()) }
     catch (cause) {
       // A 401 already cleared the token and redirected; anything else (offline) keeps the page.
-      if (!(cause instanceof ApiError && cause.status === 401)) error.set('Could not reach Kept. Check your connection.')
+      if (!(cause instanceof ApiError && cause.status === 401)) error.set('Could not reach Library. Check your connection.')
       ready.set(true)
       return !!user()
     }

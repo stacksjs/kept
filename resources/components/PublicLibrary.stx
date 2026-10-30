@@ -1,0 +1,109 @@
+<script client>
+  import { api, copyText, lastPathSegment } from '../functions/kept/client'
+  import { ApiError } from '../functions/kept/api'
+  import { fillPrompt } from '../../app/Support/prompts'
+  import { filledSegments, filterPrompts } from '../functions/kept/promptview'
+  import { safe } from '../functions/kept/safe'
+
+  const pbColor = useColorMode()
+  const pbPref = state(pbColor.preference)
+  const pbData = state(null)
+  const pbStatus = state('loading')
+  const pbSearch = state('')
+  const pbOpen = state(0)
+  const pbValues = state({})
+  const pbCopied = state(0)
+
+  const pbLibrary = derived(() => (pbData() ? pbData().library : null))
+  const pbPrompts = derived(() => {
+    const rows = pbData() ? pbData().prompts : []
+    return filterPrompts(rows.map(p => ({ ...p, favorite: false })), pbSearch(), false)
+  })
+  const pbThemeIcon = derived(() => (pbPref() === 'dark' ? 'i-hugeicons-moon-02' : pbPref() === 'light' ? 'i-hugeicons-sun-03' : 'i-hugeicons-computer'))
+  const pbThemeLabel = derived(() => (pbPref() === 'dark' ? 'Dark' : pbPref() === 'light' ? 'Light' : 'System'))
+
+  const pbValue = (id, name) => (pbValues()[id] && pbValues()[id][name]) || ''
+  const pbFilled = (prompt) => fillPrompt(prompt.body, pbValues()[prompt.id] || {})
+  const pbParts = (prompt) => filledSegments(prompt.body, pbValues()[prompt.id] || {})
+  function pbSet(id, name, event) {
+    pbValues.update(all => ({ ...all, [id]: { ...(all[id] || {}), [name]: event.target.value } }))
+    pbCopied.set(0)
+  }
+  function pbToggle(id) { pbOpen.set(pbOpen() === id ? 0 : id); pbCopied.set(0) }
+  async function pbCopy(prompt) {
+    if (await copyText(pbFilled(prompt))) pbCopied.set(prompt.id)
+  }
+  function pbCycleTheme() {
+    const next = pbPref() === 'auto' ? 'light' : pbPref() === 'light' ? 'dark' : 'auto'
+    pbColor.set(next)
+    pbPref.set(next)
+  }
+
+  onMount(async () => {
+    try {
+      pbData.set(await api.sharedLibrary(lastPathSegment()))
+      pbStatus.set('ready')
+      if (pbData().prompts.length === 1) pbOpen.set(pbData().prompts[0].id)
+    }
+    catch (cause) {
+      pbStatus.set(cause instanceof ApiError && cause.status === 404 ? 'gone' : 'error')
+    }
+  })
+</script>
+
+<main style="max-width: 760px; margin: 0 auto; padding: 32px 16px 80px">
+  <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 28px">
+    <span class="k-mark" style="width: 30px; height: 30px; border-radius: 9px; margin: 0" aria-hidden="true"><i class="k-ico i-hugeicons-checkmark-circle-02"></i></span>
+    <strong style="flex: 1; font-size: 17px">Library</strong>
+    <button type="button" class="k-icon-btn" :aria-label="'Appearance: ' + pbThemeLabel() + '. Change'" @click="pbCycleTheme()"><i class="k-ico" :class="pbThemeIcon()" aria-hidden="true"></i></button>
+  </div>
+
+  <div :if="pbStatus() === 'loading'" class="k-sub" role="status">Loading prompts.</div>
+
+  <div :if="pbStatus() === 'gone'" class="k-empty" style="min-height: 50dvh">
+    <i class="k-ico i-hugeicons-link-02" aria-hidden="true"></i>
+    <p>This link is no longer active. Ask the owner for a new one.</p>
+  </div>
+  <div :if="pbStatus() === 'error'" class="k-empty" style="min-height: 50dvh">
+    <i class="k-ico i-hugeicons-alert-circle" aria-hidden="true"></i>
+    <p>We could not load these prompts. Try again in a moment.</p>
+  </div>
+
+  <div :if="pbStatus() === 'ready'">
+    <header style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px">
+      <span class="k-lib-badge" style="width: 48px; height: 48px; border-radius: 12px" :style="'background:' + (pbLibrary().color || 'var(--accent)')"><i class="k-ico" style="width: 26px; height: 26px" :class="pbLibrary().icon || 'i-hugeicons-book-02'" aria-hidden="true"></i></span>
+      <div style="min-width: 0">
+        <h1 class="k-title" :text="safe(pbLibrary().title)"></h1>
+        <p class="k-sub" style="margin: 4px 0 0" :text="safe(pbLibrary().description || ('Shared by ' + (pbLibrary().owner || 'someone')))"></p>
+        <p class="k-sub" style="margin: 2px 0 0" :if="pbLibrary().description" :text="safe('Shared by ' + (pbLibrary().owner || 'someone') + '. Read only.')"></p>
+      </div>
+    </header>
+
+    <div class="k-search" style="margin: 0 0 12px">
+      <i class="k-ico i-hugeicons-search-01" aria-hidden="true"></i>
+      <label class="sr-only" for="pb-search">Search prompts</label>
+      <input id="pb-search" type="search" x-model="pbSearch" placeholder="Search prompts" autocomplete="off">
+    </div>
+
+    <ul class="k-rows" role="list" style="padding: 0">
+      <li :for="prompt in pbPrompts()" :key="prompt.id" role="listitem" style="border-top: 1px solid var(--line); padding: 4px 0">
+        <button type="button" class="k-prompt" :aria-expanded="pbOpen() === prompt.id ? 'true' : 'false'" @click="pbToggle(prompt.id)">
+          <strong style="display: block" :text="safe(prompt.title)"></strong>
+          <span class="k-sub" :if="prompt.description" :text="safe(prompt.description)"></span>
+          <span class="k-meta" :if="prompt.tags.length || prompt.model"><span class="k-chip k-chip-accent" :if="prompt.model" :text="safe(prompt.model)"></span><span class="k-chip" :for="tag in prompt.tags" :key="tag" :text="safe(tag)"></span></span>
+        </button>
+        <div :if="pbOpen() === prompt.id" style="padding: 4px 14px 18px">
+          <div class="k-field" :for="name in prompt.variables" :key="name">
+            <label class="k-label" :for="'pb-' + prompt.id + '-' + name" :text="safe(name)"></label>
+            <textarea :id="'pb-' + prompt.id + '-' + name" class="k-textarea" rows="1" style="min-height: 44px; field-sizing: content" :value="pbValue(prompt.id, name)" @input="pbSet(prompt.id, name, $event)"></textarea>
+          </div>
+          <div class="k-filled"><template :for="part in pbParts(prompt)"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
+          <div style="display: flex; justify-content: flex-end; margin-top: 12px">
+            <button type="button" class="k-btn k-btn-primary" @click="pbCopy(prompt)"><i class="k-ico" :class="pbCopied() === prompt.id ? 'i-hugeicons-tick-02' : 'i-hugeicons-copy-01'" aria-hidden="true"></i><span :text="pbCopied() === prompt.id ? 'Copied' : 'Copy prompt'"></span></button>
+          </div>
+        </div>
+      </li>
+    </ul>
+    <div :if="pbPrompts().length === 0" class="k-empty"><i class="k-ico i-hugeicons-sparkles" aria-hidden="true"></i><p :text="pbSearch() ? 'No prompts match your search.' : 'This library has no prompts yet.'"></p></div>
+  </div>
+</main>

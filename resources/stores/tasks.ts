@@ -7,6 +7,8 @@ import type { ChecklistItem, Todo } from '../functions/kept/types'
 /** A titled run of rows in a pane: Today's two halves, one day of Upcoming, one day of the Logbook. */
 export interface Group { key: string, label: string, sub: string, icon: string, bucket: '' | 'today' | 'evening', reorder: boolean, items: Todo[] }
 
+const WINDOW = 120
+
 /**
  * Every to-do the person has, held once. Smart lists, projects, areas and the
  * sidebar counts are all computed from it with the same rules the server uses
@@ -33,10 +35,18 @@ defineStore('tasks', () => {
   const tags = derived(() => allTags([...open(), ...logbook()]))
   const canAdd = derived(() => newTodoFor(workspace().view(), today()) !== null)
   const dragging = state<number | null>(null)
+  const drafting = state(false)
+  const searchOpen = state(false)
+  /** The inline editor opens on this panel when a toolbar button asks for it. */
+  const editorTab = state('')
+  const query = state('')
+  /** Rows drawn so far: long lists (a big Logbook, a year of Upcoming) grow as you scroll instead of mounting at once. */
+  const limit = state(WINDOW)
 
-  const groups = derived<Group[]>(() => {
+  const rawGroups = derived<Group[]>(() => {
     const view = workspace().view()
     const day = today()
+    if (query().trim()) return [{ key: 'search', label: '', sub: '', icon: '', bucket: '', reorder: false, items: search(query()) }]
     if (view.kind === 'list' && view.name === 'logbook')
       return groupLogbook(logbook(), day, localDay, dayLabel).map(group => ({ key: group.key, label: group.label, sub: '', icon: '', bucket: '', reorder: false, items: group.items }))
     if (view.kind === 'list' && view.name === 'upcoming')
@@ -49,9 +59,25 @@ defineStore('tasks', () => {
     }
     return [{ key: 'all', label: '', sub: '', icon: '', bucket: '', reorder: true, items: items() }]
   })
+  const total = derived(() => rawGroups().reduce((sum, group) => sum + group.items.length, 0))
+  const groups = derived<Group[]>(() => {
+    let budget = limit()
+    const out: Group[] = []
+    for (const group of rawGroups()) {
+      if (group.items.length > 0 && budget <= 0) continue
+      const take = group.items.slice(0, Math.max(0, budget))
+      budget -= take.length
+      out.push({ ...group, items: take })
+    }
+    return out
+  })
+  const hasMore = derived(() => total() > limit())
   /** Every row on screen in order, for the keyboard. */
   const flat = derived<Todo[]>(() => groups().flatMap(group => group.items))
-  const isEmpty = derived(() => flat().length === 0)
+  const isEmpty = derived(() => total() === 0)
+  const more = (): void => { if (hasMore()) limit.update(n => n + WINDOW) }
+  const resetWindow = (): void => { limit.set(WINDOW) }
+  const startDraft = (): void => { if (canAdd() || query().trim()) { query.set(''); drafting.set(true) } }
 
   /** The open to-do, whichever list it is in. */
   const selected = derived<Todo | null>(() => {
@@ -65,6 +91,16 @@ defineStore('tasks', () => {
   const doneCount = (projectId: number): number => logbook().filter(todo => todo.project_id === projectId && todo.completed_at).length
   const ring = (projectId: number): number => progress(openCount(projectId), doneCount(projectId))
   const areaCount = (areaId: number): number => open().filter(todo => todo.area_id === areaId && !todo.project_id).length
+
+  /** Every to-do, open or finished, whose title, notes, tags or checklist contain each word typed. */
+  function search(text: string): Todo[] {
+    const words = text.toLowerCase().split(/\s+/).filter(Boolean)
+    const hits = [...open(), ...logbook()].filter((todo) => {
+      const haystack = `${todo.title}\n${todo.notes}\n${todo.tags.join(' ')}\n${todo.checklist.map(item => item.title).join(' ')}`.toLowerCase()
+      return words.every(word => haystack.includes(word))
+    })
+    return hits.sort((a, b) => Number(!!a.completed_at) - Number(!!b.completed_at) || byOrder(a, b))
+  }
 
   const merge = (rows: Todo[]): Todo[] => [...new Map(rows.map(row => [row.id, row])).values()]
 
@@ -106,6 +142,7 @@ defineStore('tasks', () => {
       const todo = normalizeTodo(row as unknown as Record<string, unknown>)
       open.update(list => [...list, todo])
       cursor.set(todo.id)
+      void workspace().reloadSidebar()
       return todo
     }
     catch (cause) { workspace().fail(cause, 'Could not add the to-do.'); return null }
@@ -293,7 +330,7 @@ defineStore('tasks', () => {
   }
 
   return {
-    open, logbook, loaded, today, fading, cursor, quickTitle, items, logItems, split, totals, tags, canAdd, selected, dragging, groups, flat, isEmpty, dropOn,
+    open, logbook, loaded, today, fading, cursor, quickTitle, items, logItems, split, totals, tags, canAdd, selected, dragging, drafting, searchOpen, editorTab, query, limit, groups, flat, isEmpty, hasMore, more, resetWindow, startDraft, dropOn,
     openCount, doneCount, ring, areaCount, load, refreshDay, find, create, quickAdd, update, flushAll, remove, complete, reopen, toggle,
     reorder, nudge, addCheck, setCheck, removeCheck, moveCheck, step, byOrder,
   }

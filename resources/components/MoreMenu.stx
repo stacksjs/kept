@@ -1,17 +1,22 @@
 <script>
-interface MoreMenuProps { label?: string }
-const { label = 'More' } = defineProps<MoreMenuProps>()
+interface MoreMenuProps { label?: string, kind?: 'more' | 'add' | 'settings', text?: string, up?: boolean }
+const { label = 'More', kind = 'more', text = '', up = false } = defineProps<MoreMenuProps>()
 </script>
 <script client>
   const mmLabel = useReactiveProp('label', 'More')
+  // Icon classes are written out here, in full: the CSS generator reads class names from the source, not from props.
+  const mmKind = useReactiveProp('kind', 'more')
+  const mmIcon = derived(() => (mmKind() === 'add' ? 'i-hugeicons-plus-sign' : mmKind() === 'settings' ? 'i-hugeicons-settings-02' : 'i-hugeicons-more-horizontal'))
+  const mmText = useReactiveProp('text', '')
+  const mmUp = useReactiveProp('up', false)
   const mmOpen = state(false)
   const mmBox = useRef('mmBox')
   useClickOutside(() => mmBox.current, () => mmOpen.set(false))
   function mmKey(event) { if (event.key === 'Escape' && mmOpen()) { event.stopPropagation(); mmOpen.set(false) } }
 </script>
-<div class="k-menu" ref="mmBox" @keydown="mmKey($event)">
-  <button type="button" class="k-icon-btn" :aria-label="mmLabel()" aria-haspopup="menu" :aria-expanded="mmOpen() ? 'true' : 'false'" @click="mmOpen.update(v => !v)">
-    <i class="k-ico i-hugeicons-more-horizontal" aria-hidden="true"></i>
+<div class="k-menu" :class="mmUp() === true || mmUp() === 'true' ? 'k-menu-up' : ''" ref="mmBox" @keydown="mmKey($event)">
+  <button type="button" :class="mmText() ? 'k-nav-add' : 'k-icon-btn'" :style="mmText() ? 'width: auto' : ''" :aria-label="mmLabel()" aria-haspopup="menu" :aria-expanded="mmOpen() ? 'true' : 'false'" @click="mmOpen.update(v => !v)">
+    <i class="k-ico" :class="mmIcon()" aria-hidden="true"></i><span :if="mmText()" :text="mmText()"></span>
   </button>
   <div class="k-menu-panel" role="menu" :if="mmOpen()" @click="mmOpen.set(false)"><slot /></div>
 </div>

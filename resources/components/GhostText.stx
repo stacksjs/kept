@@ -1,0 +1,18 @@
+<script>
+interface GhostTextProps { variant?: 'note' | 'prompt' }
+const { variant = 'note' } = defineProps<GhostTextProps>()
+</script>
+<script client>
+  import { safe } from '../functions/kept/safe'
+
+  // Drop this in a positioned wrapper behind a textarea: <div class="k-ghost-wrap"><GhostText /><textarea class="k-ghost-ta">
+  const gtGhost = useStore('ghost')
+  const gtVariant = useReactiveProp('variant', 'note')
+  const gtText = derived(() => safe(gtGhost.text()))
+  const gtBefore = derived(() => safe(gtGhost.before()))
+  const gtShift = derived(() => 'translateY(-' + gtGhost.scrollTop() + 'px)')
+</script>
+
+<div class="k-ghost" :class="gtVariant() === 'prompt' ? 'k-ghost-prompt' : 'k-ghost-note'" aria-hidden="true" :if="gtGhost.text()">
+  <div class="k-ghost-flow" :style="'transform:' + gtShift()"><span class="k-ghost-before" :text="gtBefore()"></span><span class="k-ghost-text" :text="gtText()"></span><span class="k-ghost-hint">Tab</span></div>
+</div>

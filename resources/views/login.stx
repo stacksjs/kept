@@ -1,7 +1,7 @@
-@extends('kept')
+@extends('shell')
 @section('content')
 <script server>
-useHead({ title: 'Sign in to Kept' })
+useHead({ title: 'Sign in to Library' })
 </script>
 <AuthForm mode="signin" />
 @endsection

@@ -1,9 +1,10 @@
 <script client>
+  import { focusField } from '../functions/kept/client'
   import { safe } from '../functions/kept/safe'
   const tpWs = useStore('workspace')
   const tpTasks = useStore('tasks')
-  const tpQuick = state('')
   const tpName = state('')
+  const tpQuery = state('')
   const tpEditing = state(false)
 
   const TITLES = { inbox: 'Inbox', today: 'Today', upcoming: 'Upcoming', anytime: 'Anytime', someday: 'Someday', logbook: 'Logbook' }
@@ -37,12 +38,24 @@
   })
   const tpAreaProjects = derived(() => (tpArea() ? tpWs.projects().filter(p => p.area_id === tpArea().id) : []))
   const tpNeedsNames = derived(() => tpView().kind !== 'project')
+  const GLYPHS = { inbox: 'i-f7-tray-fill k-gl-inbox', today: 'i-f7-star-fill k-gl-today', upcoming: 'i-f7-calendar k-gl-upcoming', anytime: 'i-f7-layers-fill k-gl-anytime', someday: 'i-f7-archivebox-fill k-gl-someday', logbook: 'i-f7-checkmark-square-fill k-gl-logbook' }
+  const tpGlyph = derived(() => (tpView().kind === 'list' ? GLYPHS[tpView().name] : ''))
+  const tpEmptyIcon = derived(() => (tpView().kind === 'list' ? 'i-f7-' + { inbox: 'tray-fill', today: 'star-fill', upcoming: 'calendar', anytime: 'layers-fill', someday: 'archivebox-fill', logbook: 'checkmark-square-fill' }[tpView().name] : 'i-hugeicons-checkmark-circle-02'))
+  const tpSearching = derived(() => tpTasks.searchOpen() || tpQuery().trim().length > 0)
+  const tpOpenId = derived(() => { const r = tpWs.route(); return r.section === 'todos' ? r.item : null })
+  effect(() => { tpTasks.query.set(tpQuery()) })
+  effect(() => { tpWs.route(); tpQuery.set(''); tpTasks.searchOpen.set(false) })
 
-  async function tpAdd(event) {
-    event.preventDefault()
-    const title = tpQuick()
-    tpQuick.set('')
-    await tpTasks.create(title)
+  function tpToggleSearch() {
+    if (tpSearching()) { tpQuery.set(''); tpTasks.searchOpen.set(false); return }
+    tpTasks.searchOpen.set(true)
+    focusField('search')
+  }
+  function tpSearchKey(event) { if (event.key === 'Escape') { event.stopPropagation(); tpQuery.set(''); tpTasks.searchOpen.set(false) } }
+  function tpNeeds(tab) { tpTasks.editorTab.set(tab) }
+  function tpScroll(event) {
+    const box = event.target
+    if (tpTasks.hasMore() && box.scrollHeight - box.scrollTop - box.clientHeight < 400) tpTasks.more()
   }
   function tpEdit() { tpName.set(tpTitle()); tpEditing.set(true) }
   async function tpCommitName() {
@@ -67,11 +80,17 @@
   <header class="k-head">
     <button type="button" class="k-icon-btn k-back k-back-main" aria-label="Back to lists" @click="tpWs.back()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
     <ProgressRing :if="tpProject()" :value="tpTasks.ring(tpProject() ? tpProject().id : 0)" :size="26" />
-    <i class="k-ico k-star i-hugeicons-star" :if="tpIsToday()" style="width: 26px; height: 26px" aria-hidden="true"></i>
+    <i class="k-gl k-gl-xl" :if="tpGlyph()" :class="tpGlyph()" aria-hidden="true"></i>
+    <i class="k-ico k-gl-xl i-hugeicons-folder-02" :if="tpArea()" style="color: var(--text-3)" aria-hidden="true"></i>
     <div style="flex: 1; min-width: 0">
       <h1 class="k-title" :if="!tpEditing()" :text="safe(tpTitle())" :tabindex="tpEditable() ? 0 : null" @click="tpEditable() && tpEdit()" @keydown="tpEditable() && $event.key === 'Enter' && tpEdit()" :aria-label="tpEditable() ? safe(tpTitle()) + ', press Enter to rename' : null" :title="tpEditable() ? 'Rename' : null"></h1>
       <input class="k-title-input" :if="tpEditing()" x-model="tpName" aria-label="Name" data-focus="rename" @blur="tpCommitName()" @keydown="tpNameKey($event)">
       <p class="k-sub" :if="tpSubtitle()" style="margin: 2px 0 0" :text="tpSubtitle()"></p>
+    </div>
+    <div class="k-search" :if="tpSearching()" style="margin: 0; width: 220px">
+      <i class="k-ico i-hugeicons-search-01" aria-hidden="true"></i>
+      <label class="sr-only" for="tp-search">Search to-dos</label>
+      <input id="tp-search" type="search" data-focus="search" x-model="tpQuery" placeholder="Search" autocomplete="off" @keydown="tpSearchKey($event)">
     </div>
     <MoreMenu :if="tpEditable()" label="Options">
       <button type="button" role="menuitem" @click="tpEdit()"><i class="k-ico i-hugeicons-pencil-edit-02" aria-hidden="true"></i>Rename</button>
@@ -79,26 +98,31 @@
     </MoreMenu>
   </header>
 
-  <div class="k-scroll" id="tp-scroll">
-    <form class="k-quick" :if="tpTasks.canAdd()" @submit="tpAdd($event)">
-      <i class="k-ico i-hugeicons-plus-sign" style="color: var(--text-3)" aria-hidden="true"></i>
-      <label class="sr-only" for="tp-quick">New to-do</label>
-      <input id="tp-quick" type="text" data-focus="quick-add" x-model="tpQuick" placeholder="New to-do" autocomplete="off" enterkeyhint="done">
-    </form>
+  <div class="k-scroll" id="tp-scroll" @scroll="tpScroll($event)">
+    <div class="k-wrap">
+      <NewTodoCard />
+      <TodoGroup :for="group in tpTasks.groups()" :key="group.key" :items="group.items" :label="group.label" :sub="group.sub" :icon="group.icon" :bucket="group.bucket" :reorder="group.reorder" :projectNames="tpNeedsNames()" />
+      <button type="button" class="k-btn k-btn-quiet k-more" :if="tpTasks.hasMore()" @click="tpTasks.more()">Show more</button>
 
-    <TodoGroup :for="group in tpTasks.groups()" :key="group.key" :items="group.items" :label="group.label" :sub="group.sub" :icon="group.icon" :bucket="group.bucket" :reorder="group.reorder" :projectNames="tpNeedsNames()" />
-
-    <div :if="tpAreaProjects().length">
-      <h2 class="k-section">Projects</h2>
-      <div class="k-nav">
-        <button type="button" class="k-nav-item" :for="project in tpAreaProjects()" :key="project.id" @click="tpWs.open({ section: 'todos', view: { kind: 'project', id: project.id }, item: null })">
-          <ProgressRing :value="tpTasks.ring(project.id)" /><span :text="safe(project.title)"></span>
-          <span class="k-count" :text="tpTasks.openCount(project.id)"></span>
-        </button>
+      <div :if="tpAreaProjects().length && !tpSearching()">
+        <h2 class="k-section">Projects</h2>
+        <div class="k-nav" style="padding: 0">
+          <button type="button" class="k-nav-item" :for="project in tpAreaProjects()" :key="project.id" @click="tpWs.open({ section: 'todos', view: { kind: 'project', id: project.id }, item: null })">
+            <ProgressRing :value="tpTasks.ring(project.id)" /><span :text="safe(project.title)"></span>
+            <span class="k-count" :text="tpTasks.openCount(project.id)"></span>
+          </button>
+        </div>
       </div>
-    </div>
 
-    <EmptyState :if="tpTasks.isEmpty() && tpTasks.loaded() && !tpAreaProjects().length" icon="i-hugeicons-checkmark-circle-02" :text="tpEmptyText()" />
-    <div class="k-gap"></div>
+      <EmptyState :if="tpTasks.isEmpty() && tpTasks.loaded() && !tpAreaProjects().length && !tpTasks.drafting()" :icon="tpEmptyIcon()" :text="tpEmptyText()" />
+      <div class="k-gap"></div>
+    </div>
+  </div>
+
+  <div class="k-bar" role="toolbar" aria-label="To-do actions">
+    <button type="button" class="k-icon-btn" aria-label="New to-do" title="New to-do (N)" :disabled="!tpTasks.canAdd()" @click="tpTasks.startDraft()"><i class="k-ico k-ico-lg i-hugeicons-plus-sign" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Schedule the open to-do" title="When" :disabled="!tpOpenId()" @click="tpNeeds('when')"><i class="k-ico k-ico-lg i-hugeicons-calendar-03" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Move the open to-do" title="Move" :disabled="!tpOpenId()" @click="tpNeeds('more')"><i class="k-ico k-ico-lg i-hugeicons-arrow-right-02" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Search" title="Search (/)" :aria-pressed="tpSearching() ? 'true' : 'false'" @click="tpToggleSearch()"><i class="k-ico k-ico-lg i-hugeicons-search-01" aria-hidden="true"></i></button>
   </div>
 </section>

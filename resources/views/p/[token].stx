@@ -1,0 +1,7 @@
+@extends('shell')
+@section('content')
+<script server>
+useHead({ title: 'Shared prompts', meta: [{ name: 'robots', content: 'noindex' }] })
+</script>
+<PublicLibrary />
+@endsection

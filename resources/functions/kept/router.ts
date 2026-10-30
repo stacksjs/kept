@@ -12,7 +12,7 @@ import { isSmartList, type SmartList } from '../../../app/Support/lists'
  */
 export type Route
   = | { section: 'todos', view: { kind: 'list', name: SmartList } | { kind: 'project', id: number } | { kind: 'area', id: number }, item: number | null }
-    | { section: 'notes', folder: 'all' | number, item: number | null }
+    | { section: 'notes', folder: NoteFolderKey, item: number | null }
     | { section: 'prompts', library: number | null, item: number | null }
     | { section: 'home' }
 
@@ -20,6 +20,9 @@ const positive = (value: string | undefined): number | null => {
   const n = Number(value)
   return Number.isSafeInteger(n) && n > 0 ? n : null
 }
+
+/** All notes, one folder, one `#tag`, or the recently deleted. */
+export type NoteFolderKey = 'all' | 'trash' | number | `tag:${string}`
 
 export const HOME: Route = { section: 'home' }
 
@@ -29,6 +32,8 @@ export function parseRoute(hash: string): Route {
   if (isSmartList(first)) return { section: 'todos', view: { kind: 'list', name: first }, item: positive(a) }
   if ((first === 'project' || first === 'area') && positive(a)) return { section: 'todos', view: { kind: first, id: positive(a)! }, item: positive(b) }
   if (first === 'notes') {
+    if (a === 'trash') return { section: 'notes', folder: 'trash', item: positive(b) }
+    if (a === 'tag' && b) return { section: 'notes', folder: `tag:${decodeURIComponent(b)}`, item: positive(c) }
     const folder = a?.startsWith('f') ? positive(a.slice(1)) : null
     return { section: 'notes', folder: folder ?? 'all', item: positive(folder ? b : a) ?? positive(folder ? c : b) }
   }
@@ -43,7 +48,10 @@ export function formatRoute(route: Route): string {
       const tail = route.item ? `/${route.item}` : ''
       return route.view.kind === 'list' ? `#/${route.view.name}${tail}` : `#/${route.view.kind}/${route.view.id}${tail}`
     }
-    case 'notes': return `#/notes${route.folder === 'all' ? '' : `/f${route.folder}`}${route.item ? `/${route.item}` : ''}`
+    case 'notes': {
+      const where = route.folder === 'all' ? '' : route.folder === 'trash' ? '/trash' : typeof route.folder === 'string' ? `/tag/${encodeURIComponent(route.folder.slice(4))}` : `/f${route.folder}`
+      return `#/notes${where}${route.item ? `/${route.item}` : ''}`
+    }
     case 'prompts': return `#/prompts${route.library ? `/${route.library}` : ''}${route.item ? `/${route.item}` : ''}`
   }
 }

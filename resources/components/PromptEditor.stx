@@ -5,6 +5,7 @@
 
   const peWs = useStore('workspace')
   const pePrompts = useStore('prompts')
+  const peGhost = useStore('ghost')
   const peDraft = pePrompts.draft
   const peTagText = state('')
   const peReadOnly = derived(() => !pePrompts.canEdit())
@@ -22,6 +23,28 @@
 
   // Built from pieces: a literal pair of braces in a template attribute is read as a mustache.
   const peChip = (name) => safe('{' + '{' + name + '}' + '}')
+  function peBodyInput(event) {
+    pePrompts.change({ body: event.target.value })
+    const lib = pePrompts.library()
+    peGhost.track('prompt', (lib ? lib.title : '') + (peDraft().model ? ', for ' + peDraft().model : ''), event.target)
+  }
+  function peBodyKey(event) {
+    if (event.key === 'Tab' && !event.shiftKey) {
+      const suggestion = peGhost.take()
+      if (suggestion) {
+        event.preventDefault()
+        const area = event.target
+        const at = area.selectionStart
+        const next = area.value.slice(0, at) + suggestion + area.value.slice(at)
+        pePrompts.change({ body: next })
+        area.value = next
+        area.setSelectionRange(at + suggestion.length, at + suggestion.length)
+        return
+      }
+    }
+    if (event.key === 'Escape' && peGhost.text()) { event.stopPropagation(); peGhost.dismiss(); return }
+    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) peGhost.dismiss()
+  }
   const peField = (name) => (event) => pePrompts.change({ [name]: event.target.value })
   function peAddTags(event) {
     event.preventDefault()
@@ -62,7 +85,10 @@
 
         <div class="k-field" style="margin-top: 18px">
           <label class="k-label" for="pe-body">Prompt</label>
-          <textarea id="pe-body" class="k-textarea" :if="!peReadOnly()" style="min-height: 200px; line-height: 1.6; field-sizing: content" :value="peDraft().body" placeholder="Write the prompt. Wrap a name in double curly braces to leave a value to fill in later." @input="peField('body')($event)"></textarea>
+          <div class="k-ghost-wrap" :if="!peReadOnly()">
+            <GhostText variant="prompt" />
+            <textarea id="pe-body" class="k-textarea k-ghost-ta" style="min-height: 200px; line-height: 1.6; font-size: 15px; field-sizing: content" :value="peDraft().body" placeholder="Write the prompt. Wrap a name in double curly braces to leave a value to fill in later." @input="peBodyInput($event)" @keydown="peBodyKey($event)" @blur="peGhost.dismiss()" @mousedown="peGhost.dismiss()"></textarea>
+          </div>
           <div class="k-filled" :if="peReadOnly()"><template :for="part in peParts()"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
           <div class="k-vars" :if="peVariables().length">
             <span class="k-sub" style="align-self: center">Variables</span>

@@ -5,10 +5,11 @@ const { value = 0, size = 18 } = defineProps<ProgressRingProps>()
 <script client>
   const prValue = useReactiveProp('value', 0)
   const prSize = useReactiveProp('size', 18)
-  // r = 7 on a 18 unit box: circumference 43.98
-  const prOffset = derived(() => 43.98 * (1 - Math.max(0, Math.min(1, Number(prValue()) || 0))))
+  // Things draws a project's progress as a pie: a thin ring with a wedge filled inside it.
+  // The wedge is a circle of radius 3.4 stroked 6.8 wide, so its dash length is a share of 2 * pi * 3.4 = 21.36.
+  const prDash = derived(() => (21.36 * Math.max(0, Math.min(1, Number(prValue()) || 0))).toFixed(2) + ' 21.36')
 </script>
 <svg class="k-ring" viewBox="0 0 18 18" :width="prSize()" :height="prSize()" aria-hidden="true">
-  <circle class="k-ring-track" cx="9" cy="9" r="7"></circle>
-  <circle class="k-ring-bar" cx="9" cy="9" r="7" stroke-dasharray="43.98" :stroke-dashoffset="prOffset()"></circle>
+  <circle class="k-ring-track" cx="9" cy="9" r="7.6"></circle>
+  <circle class="k-ring-pie" cx="9" cy="9" r="3.4" :stroke-dasharray="prDash()"></circle>
 </svg>

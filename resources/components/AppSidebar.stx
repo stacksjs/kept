@@ -5,26 +5,26 @@
   const sbWs = useStore('workspace')
   const sbTasks = useStore('tasks')
   const sbNotes = useStore('notes')
-  const sbSession = useStore('keptSession')
+  const sbSession = useStore('account')
   const sbColor = useColorMode()
   const sbPref = state(sbColor.preference)
   const sbAdding = state('')
   const sbDraft = state('')
 
-  const sbSmart = [
-    { name: 'inbox', label: 'Inbox', icon: 'i-hugeicons-inbox' },
-    { name: 'today', label: 'Today', icon: 'i-hugeicons-star', star: true },
-    { name: 'upcoming', label: 'Upcoming', icon: 'i-hugeicons-calendar-03' },
-    { name: 'anytime', label: 'Anytime', icon: 'i-hugeicons-layers-01' },
-    { name: 'someday', label: 'Someday', icon: 'i-hugeicons-archive-01' },
-    { name: 'logbook', label: 'Logbook', icon: 'i-hugeicons-checkmark-circle-02' },
+  const sbTop = [{ name: 'inbox', label: 'Inbox', icon: 'i-f7-tray-fill' }]
+  const sbMiddle = [
+    { name: 'today', label: 'Today', icon: 'i-f7-star-fill' },
+    { name: 'upcoming', label: 'Upcoming', icon: 'i-f7-calendar' },
+    { name: 'anytime', label: 'Anytime', icon: 'i-f7-layers-fill' },
+    { name: 'someday', label: 'Someday', icon: 'i-f7-archivebox-fill' },
   ]
+  const sbLog = [{ name: 'logbook', label: 'Logbook', icon: 'i-f7-checkmark-square-fill' }]
 
   const sbCount = (name) => (name === 'logbook' ? 0 : (sbTasks.totals()[name] || 0))
   const sbSection = sbWs.section
   const sbIsList = (name) => { const r = sbWs.route(); return r.section === 'todos' && r.view.kind === 'list' && r.view.name === name }
   const sbIsKind = (kind, id) => { const r = sbWs.route(); return r.section === 'todos' && r.view.kind === kind && r.view.id === id }
-  const sbIsFolder = (id) => { const r = sbWs.route(); return r.section === 'notes' && r.folder === id }
+  const sbIsFolder = (id) => { const r = sbWs.route(); return r.section === 'notes' && (r.folder === id) }
   const sbIsLibrary = (id) => { const r = sbWs.route(); return r.section === 'prompts' && r.library === id }
 
   const sbGroups = derived(() => {
@@ -41,10 +41,9 @@
   const sbThemeIcon = derived(() => (sbPref() === 'dark' ? 'i-hugeicons-moon-02' : sbPref() === 'light' ? 'i-hugeicons-sun-03' : 'i-hugeicons-computer'))
   const sbThemeLabel = derived(() => (sbPref() === 'dark' ? 'Dark' : sbPref() === 'light' ? 'Light' : 'System'))
 
-  function sbCycleTheme() {
-    const next = sbPref() === 'auto' ? 'light' : sbPref() === 'light' ? 'dark' : 'auto'
-    sbColor.set(next)
-    sbPref.set(next)
+  function sbSetTheme(mode) {
+    sbColor.set(mode)
+    sbPref.set(mode)
   }
 
   const sbList = (name) => sbWs.open({ section: 'todos', view: { kind: 'list', name }, item: null })
@@ -69,27 +68,24 @@
 </script>
 
 <div class="k-pane k-side" style="flex: 1">
-  <nav class="k-scroll" aria-label="Kept">
-    <div class="k-nav" style="padding-top: 16px">
-      <div style="display: flex; align-items: center; gap: 10px; padding: 0 10px 12px">
-        <span class="k-mark" style="width: 30px; height: 30px; border-radius: 9px; margin: 0" aria-hidden="true"><i class="k-ico i-hugeicons-checkmark-circle-02"></i></span>
-        <strong style="font-size: 17px; letter-spacing: -.01em">Kept</strong>
+  <nav class="k-scroll" aria-label="Library">
+    <div class="k-nav" style="padding-top: 18px">
+      <div :for="group in [sbTop, sbMiddle, sbLog]" :key="group[0].name">
+        <button type="button" class="k-nav-item" :for="item in group" :key="item.name" :aria-current="sbSection() === 'todos' && sbIsList(item.name) ? 'page' : null" @click="sbList(item.name)">
+          <i class="k-gl" :class="[item.icon, 'k-gl-' + item.name]" aria-hidden="true"></i>
+          <span :text="item.label"></span>
+          <span class="k-count" :if="sbCount(item.name) > 0" :text="sbCount(item.name)"></span>
+        </button>
+        <div class="k-nav-gap"></div>
       </div>
 
-      <button type="button" class="k-nav-item" :for="item in sbSmart" :key="item.name" :aria-current="sbSection() === 'todos' && sbIsList(item.name) ? 'page' : null" @click="sbList(item.name)">
-        <i class="k-ico" :class="[item.icon, item.star ? 'k-star' : '']" aria-hidden="true"></i>
-        <span :text="item.label"></span>
-        <span class="k-count" :if="sbCount(item.name) > 0" :text="sbCount(item.name)"></span>
-      </button>
-
-      <div class="k-nav-group"><span>Projects</span></div>
       <div :for="group in sbGroups()" :key="group.id">
         <button type="button" class="k-nav-item" :if="group.id" :aria-current="sbIsKind('area', group.id) ? 'page' : null" @click="sbOpenKind('area', group.id)" style="font-weight: 600">
-          <i class="k-ico i-hugeicons-folder-02" aria-hidden="true"></i>
+          <i class="k-ico i-hugeicons-folder-02" style="color: var(--text-3)" aria-hidden="true"></i>
           <span :text="safe(group.title)"></span>
           <span class="k-count" :if="sbTasks.areaCount(group.id) > 0" :text="sbTasks.areaCount(group.id)"></span>
         </button>
-        <button type="button" class="k-nav-item" :for="project in group.projects" :key="project.id" :style="group.id ? 'padding-left: 30px' : ''" :aria-current="sbIsKind('project', project.id) ? 'page' : null" @click="sbOpenKind('project', project.id)">
+        <button type="button" class="k-nav-item" :for="project in group.projects" :key="project.id" :style="group.id ? 'padding-left: 28px' : ''" :aria-current="sbIsKind('project', project.id) ? 'page' : null" @click="sbOpenKind('project', project.id)">
           <ProgressRing :value="sbTasks.ring(project.id)" />
           <span :text="safe(project.title)" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"></span>
           <span class="k-count" :if="sbTasks.openCount(project.id) > 0" :text="sbTasks.openCount(project.id)"></span>
@@ -99,23 +95,28 @@
         <label class="sr-only" for="sb-new">New name</label>
         <input id="sb-new" ref="sbInput" class="k-input" type="text" x-model="sbDraft" :placeholder="sbAdding() === 'area' ? 'Area name' : 'Project name'" @keydown="sbKey($event)" @blur="sbAdding.set('')">
       </form>
-      <button type="button" class="k-nav-add" @click="sbStart('project')"><i class="k-ico i-hugeicons-plus-sign" aria-hidden="true"></i>New project</button>
-      <button type="button" class="k-nav-add" @click="sbStart('area')"><i class="k-ico i-hugeicons-plus-sign" aria-hidden="true"></i>New area</button>
 
       <div class="k-nav-group"><span>Notes</span></div>
       <button type="button" class="k-nav-item" :aria-current="sbIsFolder('all') ? 'page' : null" @click="sbOpenNotes('all')">
-        <i class="k-ico i-hugeicons-note-01" aria-hidden="true"></i><span>All notes</span>
+        <i class="k-ico i-hugeicons-note-01" style="color: #e0a82e" aria-hidden="true"></i><span>All notes</span>
         <span class="k-count" :if="sbNotes.items().length > 0" :text="sbNotes.items().length"></span>
       </button>
       <button type="button" class="k-nav-item" :for="folder in sbWs.folders()" :key="folder.id" :aria-current="sbIsFolder(folder.id) ? 'page' : null" @click="sbOpenNotes(folder.id)">
-        <i class="k-ico i-hugeicons-folder-01" aria-hidden="true"></i><span :text="safe(folder.title)"></span>
+        <i class="k-ico i-hugeicons-folder-01" style="color: #e0a82e" aria-hidden="true"></i><span :text="safe(folder.title)"></span>
         <span class="k-count" :if="folder.notes > 0" :text="folder.notes"></span>
+      </button>
+      <button type="button" class="k-nav-item" :for="tag in sbNotes.tagList()" :key="'t' + tag.name" :aria-current="sbIsFolder('tag:' + tag.name) ? 'page' : null" @click="sbOpenNotes('tag:' + tag.name)">
+        <i class="k-ico i-hugeicons-tag-01" style="color: var(--text-3)" aria-hidden="true"></i><span :text="safe('#' + tag.name)"></span>
+        <span class="k-count" :text="tag.count"></span>
+      </button>
+      <button type="button" class="k-nav-item" :aria-current="sbIsFolder('trash') ? 'page' : null" @click="sbOpenNotes('trash')">
+        <i class="k-ico i-hugeicons-delete-02" style="color: var(--text-3)" aria-hidden="true"></i><span>Recently deleted</span>
+        <span class="k-count" :if="sbNotes.trashed().length > 0" :text="sbNotes.trashed().length"></span>
       </button>
       <form :if="sbAdding() === 'folder'" @submit="sbCommit($event)" style="padding: 4px 4px 0">
         <label class="sr-only" for="sb-folder">Folder name</label>
         <input id="sb-folder" ref="sbInput" class="k-input" type="text" x-model="sbDraft" placeholder="Folder name" @keydown="sbKey($event)" @blur="sbAdding.set('')">
       </form>
-      <button type="button" class="k-nav-add" @click="sbStart('folder')"><i class="k-ico i-hugeicons-plus-sign" aria-hidden="true"></i>New folder</button>
 
       <div class="k-nav-group"><span>Prompt libraries</span></div>
       <button type="button" class="k-nav-item" :for="lib in sbOwned()" :key="lib.id" :aria-current="sbIsLibrary(lib.id) ? 'page' : null" @click="sbOpenLibrary(lib.id)">
@@ -130,14 +131,22 @@
         <label class="sr-only" for="sb-lib">Library name</label>
         <input id="sb-lib" ref="sbInput" class="k-input" type="text" x-model="sbDraft" placeholder="Library name" @keydown="sbKey($event)" @blur="sbAdding.set('')">
       </form>
-      <button type="button" class="k-nav-add" @click="sbStart('library')"><i class="k-ico i-hugeicons-plus-sign" aria-hidden="true"></i>New library</button>
     </div>
   </nav>
 
-  <div class="k-foot">
-    <span class="k-avatar" aria-hidden="true" :text="sbInitials()"></span>
-    <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px" :text="sbName()"></span>
-    <button type="button" class="k-icon-btn" :aria-label="'Appearance: ' + sbThemeLabel() + '. Change'" :title="'Appearance: ' + sbThemeLabel()" @click="sbCycleTheme()"><i class="k-ico" :class="sbThemeIcon()" aria-hidden="true"></i></button>
-    <button type="button" class="k-icon-btn" aria-label="Sign out" title="Sign out" @click="sbSession.signOut()"><i class="k-ico i-hugeicons-logout-01" aria-hidden="true"></i></button>
+  <div class="k-sbar">
+    <MoreMenu :up="true" label="Add new" kind="add" text="New">
+      <button type="button" role="menuitem" @click="sbStart('project')"><i class="k-ico i-hugeicons-task-add-01" aria-hidden="true"></i>New project</button>
+      <button type="button" role="menuitem" @click="sbStart('area')"><i class="k-ico i-hugeicons-folder-add" aria-hidden="true"></i>New area</button>
+      <button type="button" role="menuitem" @click="sbStart('folder')"><i class="k-ico i-hugeicons-note-add" aria-hidden="true"></i>New notes folder</button>
+      <button type="button" role="menuitem" @click="sbStart('library')"><i class="k-ico i-hugeicons-book-02" aria-hidden="true"></i>New prompt library</button>
+    </MoreMenu>
+    <MoreMenu :up="true" label="Account and appearance" kind="settings">
+      <div class="k-menu-label" :text="sbName()"></div>
+      <button type="button" role="menuitemradio" :aria-checked="sbPref() === 'auto' ? 'true' : 'false'" @click="sbSetTheme('auto')"><i class="k-ico i-hugeicons-computer" aria-hidden="true"></i>System appearance</button>
+      <button type="button" role="menuitemradio" :aria-checked="sbPref() === 'light' ? 'true' : 'false'" @click="sbSetTheme('light')"><i class="k-ico i-hugeicons-sun-03" aria-hidden="true"></i>Light</button>
+      <button type="button" role="menuitemradio" :aria-checked="sbPref() === 'dark' ? 'true' : 'false'" @click="sbSetTheme('dark')"><i class="k-ico i-hugeicons-moon-02" aria-hidden="true"></i>Dark</button>
+      <button type="button" role="menuitem" @click="sbSession.signOut()"><i class="k-ico i-hugeicons-logout-01" aria-hidden="true"></i>Sign out</button>
+    </MoreMenu>
   </div>
 </div>

@@ -1,7 +1,7 @@
-@extends('kept')
+@extends('shell')
 @section('content')
 <script server>
-useHead({ title: 'Create a Kept account' })
+useHead({ title: 'Create a Library account' })
 </script>
 <AuthForm mode="signup" />
 @endsection

@@ -93,3 +93,9 @@ export function trapTab(panel: HTMLElement | null, event: KeyboardEvent): void {
   if (event.shiftKey && active === first) { event.preventDefault(); last.focus() }
   else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
 }
+
+/** The last path segment of the current URL, which is the token on `/p/<token>`. */
+export function lastPathSegment(): string {
+  const parts = (globalThis.location?.pathname ?? '').split('/').filter(Boolean)
+  return decodeURIComponent(parts[parts.length - 1] ?? '')
+}

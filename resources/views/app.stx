@@ -1,19 +1,21 @@
-@extends('kept')
+@extends('shell')
 @section('content')
 <script server>
-useHead({ title: 'Kept' })
+useHead({ title: 'Library' })
 </script>
 <script client>
   import { commandFor } from '../functions/kept/shortcuts'
   import { focusField, isWide, scrollCursorIntoView } from '../functions/kept/client'
 
-  const session = useStore('keptSession')
+  const session = useStore('account')
   const ws = useStore('workspace')
   const tasks = useStore('tasks')
   const notes = useStore('notes')
   const prompts = useStore('prompts')
   const ready = state(false)
   const panel = ws.panel
+  // To-dos open in place inside their list, so a phone never needs a separate detail screen for them.
+  const shellPanel = derived(() => (isTodos() && panel() === 'detail' ? 'list' : panel()))
   const section = ws.section
   const isTodos = derived(() => section() === 'todos' || section() === 'home')
 
@@ -36,7 +38,7 @@ useHead({ title: 'Kept' })
   })
 
   // Moving between lists clears the keyboard cursor so it never points at a row that is not on screen.
-  effect(() => { ws.route(); if (!tasks.flat().some(todo => todo.id === tasks.cursor())) tasks.cursor.set(null) })
+  effect(() => { ws.route(); tasks.resetWindow(); notes.resetWindow(); if (!tasks.flat().some(todo => todo.id === tasks.cursor())) tasks.cursor.set(null) })
 
   function blocked() {
     return !!ws.confirmation() || prompts.useOpen() || prompts.shareOpen() || prompts.versionsOpen()
@@ -63,21 +65,27 @@ useHead({ title: 'Kept' })
     if (command === 'close') {
       if (closeTop()) { event.preventDefault(); return }
       if (tag === 'input' || tag === 'textarea' || tag === 'select') { target.blur(); return }
+      if (tasks.drafting()) { tasks.drafting.set(false); return }
       if (ws.route().item) {
         if (sec === 'notes') notes.close()
         else if (sec === 'prompts') prompts.close()
-        else ws.openItem(null)
+        else { tasks.flushAll(); ws.openItem(null) }
       }
       return
     }
     if (blocked() && command !== 'save') return
     if (command === 'save') { if (sec === 'prompts') { event.preventDefault(); prompts.save() } return }
-    if (command === 'search') { event.preventDefault(); focusField(sec === 'todos' ? 'quick-add' : 'search'); return }
+    if (command === 'search') {
+      event.preventDefault()
+      if (sec === 'todos') tasks.searchOpen.set(true)
+      focusField('search')
+      return
+    }
     if (command === 'new') {
       event.preventDefault()
       if (sec === 'notes') notes.create()
       else if (sec === 'prompts') prompts.create()
-      else focusField('quick-add')
+      else tasks.startDraft()
       return
     }
     if (sec !== 'todos') return
@@ -101,10 +109,9 @@ useHead({ title: 'Kept' })
   useEventListener('beforeunload', () => { tasks.flushAll(); notes.flush() })
 </script>
 
-<div class="k-shell" :data-panel="panel()" :data-ready="ready() ? 'true' : 'false'">
+<div class="k-shell" :data-panel="shellPanel()" :data-section="section()" :data-ready="ready() ? 'true' : 'false'">
   <AppSidebar />
   <TodoPane :if="isTodos()" />
-  <TodoDetail :if="isTodos()" />
   <NoteList :if="section() === 'notes'" />
   <NoteEditor :if="section() === 'notes'" />
   <PromptList :if="section() === 'prompts'" />

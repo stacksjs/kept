@@ -1,6 +1,6 @@
 import type { Session } from './api'
 
-const KEY = 'kept.token'
+const KEY = 'library.token'
 
 /**
  * The web app's session: the bearer token lives in localStorage so a reload

@@ -6,7 +6,7 @@ const { mode = 'signin' } = defineProps<AuthFormProps>()
   import { queryParam } from '../functions/kept/client'
 
   const afMode = useReactiveProp('mode', 'signin')
-  const afSession = useStore('keptSession')
+  const afSession = useStore('account')
   const afName = state('')
   const afEmail = state('')
   const afPassword = state('')
@@ -52,7 +52,7 @@ const { mode = 'signin' } = defineProps<AuthFormProps>()
     </form>
 
     <p class="k-sub" style="margin-top: 20px; text-align: center; font-size: 14px">
-      <span :text="afSignUp() ? 'Already have an account?' : 'New to Kept?'"></span>
+      <span :text="afSignUp() ? 'Already have an account?' : 'New to Library?'"></span>
       <a :href="afOther()" style="color: var(--accent-text); font-weight: 600" :text="afSignUp() ? 'Sign in' : 'Create an account'"></a>
     </p>
   </div>

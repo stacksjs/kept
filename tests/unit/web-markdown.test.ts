@@ -2,6 +2,14 @@ import { describe, expect, it } from 'bun:test'
 import { applyFormat, checkProgress, continueList, inline, renderMarkdown, toggleCheckLine } from '../../resources/functions/kept/markdown'
 
 describe('markdown', () => {
+  it('links tags and [[notes]] only where asked', () => {
+    expect(renderMarkdown('plan #trip and [[Groceries]]')).not.toContain('data-tag')
+    const html = renderMarkdown('plan #Trip and [[Groceries]]\n# Heading', true)
+    expect(html).toContain('data-tag="trip"')
+    expect(html).toContain('data-note-link="Groceries"')
+    expect(html).toContain('<h2>Heading</h2>')
+  })
+
   it('escapes markup before formatting', () => {
     expect(inline('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(inline('**bold** and *soft* and `code`')).toBe('<strong>bold</strong> and <em>soft</em> and <code>code</code>')

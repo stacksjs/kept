@@ -4,6 +4,7 @@ const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = fals
 </script>
 <script client>
   import { safe } from '../functions/kept/safe'
+  import { focusField } from '../functions/kept/client'
   import { deadlineLabel, deadlineState } from '../functions/kept/format'
 
   const tgItems = useReactiveProp('items', [])
@@ -36,7 +37,7 @@ const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = fals
   }
   const tgDropState = (todo) => { const d = tgDrop(); return d && d.id === todo.id ? (d.after ? 'after' : 'before') : null }
 
-  function tgOpen(todo) { tgTasks.cursor.set(todo.id); tgWs.openItem(todo.id) }
+  function tgOpen(todo) { tgTasks.cursor.set(todo.id); tgWs.openItem(todo.id); focusField('todo-title') }
   function tgToggle(event, todo) { event.stopPropagation(); tgTasks.toggle(todo) }
   function tgDragStart(event, todo) {
     if (!tgCanDrag()) { event.preventDefault(); return }
@@ -69,31 +70,33 @@ const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = fals
 
 <section>
   <h2 class="k-section" :if="tgLabel()">
-    <i class="k-ico k-star" :if="tgIcon()" :class="tgIcon()" aria-hidden="true"></i>
+    <i class="k-gl i-f7-moon-fill k-gl-evening" :if="tgBucket() === 'evening'" style="width: 16px; height: 16px" aria-hidden="true"></i>
     <span :text="tgLabel()"></span>
     <span class="k-sub" :if="tgSub()" :text="tgSub()"></span>
   </h2>
-  <p class="k-sub" :if="tgItems().length === 0 && tgLabel() && tgBucket()" style="padding: 8px 20px 12px" @dragover="tgTasks.dragging() !== null && $event.preventDefault()" @drop="tgDropEmpty($event)">Drag a to-do here.</p>
-  <ul class="k-rows" role="list" :if="tgItems().length > 0">
-    <li class="k-row" :for="todo in tgItems()" :key="todo.id" role="listitem"
-        :data-open="tgOpenId() === todo.id ? 'true' : 'false'" :data-cursor="tgTasks.cursor() === todo.id ? 'true' : 'false'" :data-done="tgIsDone(todo) ? 'true' : 'false'" :data-leaving="tgLeaving(todo) ? 'true' : 'false'" :data-drop="tgDropState(todo)"
-        :draggable="tgCanDrag() ? 'true' : 'false'" @click="tgOpen(todo)" @dragstart="tgDragStart($event, todo)" @dragover="tgDragOver($event, todo)" @drop="tgDropOn($event, todo)" @dragend="tgDragEnd()">
-      <i class="k-ico k-handle i-hugeicons-drag-drop-vertical" aria-hidden="true"></i>
-      <button type="button" class="k-check" role="checkbox" :aria-checked="tgIsDone(todo) ? 'true' : 'false'" :aria-label="safe((tgIsDone(todo) ? 'Mark not done: ' : 'Complete: ') + todo.title)" @click="tgToggle($event, todo)">
-        <i class="k-tick i-hugeicons-tick-02" aria-hidden="true"></i>
-      </button>
-      <div class="k-row-body">
-        <button type="button" class="k-row-title" :text="safe(todo.title || 'New to-do')" :aria-label="safe('Open: ' + todo.title)"></button>
-        <div class="k-meta" :if="todo.deadline || todo.tags.length || tgProject(todo) || tgChecks(todo) || todo.repeat !== 'none'">
-          <span class="k-chip" :class="tgDeadlineState(todo) === 'overdue' ? 'k-chip-danger' : tgDeadlineState(todo) === 'today' ? 'k-chip-accent' : ''" :if="todo.deadline && !todo.completed_at">
-            <i class="k-ico i-hugeicons-flag-02" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="tgDeadline(todo)"></span>
-          </span>
-          <span class="k-chip" :if="tgProject(todo)"><i class="k-ico i-hugeicons-folder-02" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="safe(tgProject(todo))"></span></span>
-          <span class="k-chip" :if="tgChecks(todo)"><i class="k-ico i-hugeicons-check-list" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="tgChecks(todo)"></span></span>
-          <span class="k-chip" :if="todo.repeat !== 'none'"><i class="k-ico i-hugeicons-repeat" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="todo.repeat"></span></span>
-          <span class="k-chip" :for="tag in todo.tags" :key="tag"><i class="k-ico i-hugeicons-tag-01" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="safe(tag)"></span></span>
+  <p class="k-sub" :if="tgItems().length === 0 && tgLabel() && tgBucket()" style="padding: 8px 10px 12px" @dragover="tgTasks.dragging() !== null && $event.preventDefault()" @drop="tgDropEmpty($event)">Drag a to-do here.</p>
+  <ul class="k-rows" role="list" :if="tgItems().length > 0" style="padding: 0">
+    <template :for="todo in tgItems()" :key="todo.id">
+      <li class="k-row" :if="tgOpenId() !== todo.id" role="listitem"
+          :data-cursor="tgTasks.cursor() === todo.id ? 'true' : 'false'" :data-done="tgIsDone(todo) ? 'true' : 'false'" :data-leaving="tgLeaving(todo) ? 'true' : 'false'" :data-drop="tgDropState(todo)"
+          :draggable="tgCanDrag() ? 'true' : 'false'" @click="tgOpen(todo)" @dragstart="tgDragStart($event, todo)" @dragover="tgDragOver($event, todo)" @drop="tgDropOn($event, todo)" @dragend="tgDragEnd()">
+        <button type="button" class="k-check" role="checkbox" :aria-checked="tgIsDone(todo) ? 'true' : 'false'" :aria-label="safe((tgIsDone(todo) ? 'Mark not done: ' : 'Complete: ') + todo.title)" @click="tgToggle($event, todo)">
+          <i class="k-tick i-hugeicons-tick-02" aria-hidden="true"></i>
+        </button>
+        <div class="k-row-body">
+          <button type="button" class="k-row-title" :aria-label="safe('Open: ' + todo.title)"><span :text="safe(todo.title || 'New to-do')"></span><i class="k-ico k-note-icon i-hugeicons-file-01" :if="todo.notes" aria-hidden="true"></i></button>
+          <div class="k-meta" :if="todo.deadline || todo.tags.length || tgProject(todo) || tgChecks(todo) || todo.repeat !== 'none'">
+            <span class="k-chip" :class="tgDeadlineState(todo) === 'overdue' ? 'k-chip-danger' : tgDeadlineState(todo) === 'today' ? 'k-chip-accent' : ''" :if="todo.deadline && !todo.completed_at">
+              <i class="k-ico i-hugeicons-flag-02" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="tgDeadline(todo)"></span>
+            </span>
+            <span class="k-chip" :if="tgProject(todo)"><i class="k-ico i-hugeicons-folder-02" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="safe(tgProject(todo))"></span></span>
+            <span class="k-chip" :if="tgChecks(todo)"><i class="k-ico i-hugeicons-check-list" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="tgChecks(todo)"></span></span>
+            <span class="k-chip" :if="todo.repeat !== 'none'"><i class="k-ico i-hugeicons-repeat" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="todo.repeat"></span></span>
+            <span class="k-chip" :for="tag in todo.tags" :key="tag"><i class="k-ico i-hugeicons-tag-01" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="safe(tag)"></span></span>
+          </div>
         </div>
-      </div>
-    </li>
+      </li>
+      <li class="k-card" :if="tgOpenId() === todo.id"><TodoEditor /></li>
+    </template>
   </ul>
 </section>

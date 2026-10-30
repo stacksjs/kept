@@ -11,7 +11,7 @@ const escapeHtml = (text: string): string =>
 
 const safeUrl = (url: string): boolean => /^(https?:\/\/|mailto:)/i.test(url)
 
-export function inline(text: string): string {
+export function inline(text: string, notes = false): string {
   let out = escapeHtml(text)
   out = out.replace(/`([^`]+)`/g, '<code>$1</code>')
   out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
@@ -19,6 +19,10 @@ export function inline(text: string): string {
   out = out.replace(/(^|[^_\w])_([^_\s][^_]*)_(?!\w)/g, '$1<em>$2</em>')
   out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (whole, label: string, url: string) =>
     safeUrl(url.replace(/&amp;/g, '&')) ? `<a href="${url}" target="_blank" rel="noopener noreferrer">${label}</a>` : whole)
+  if (notes) {
+    out = out.replace(/\[\[([^\]\n]{1,200})\]\]/g, (_whole, title: string) => `<a href="#" class="md-note-link" data-note-link="${title.trim()}">${title.trim()}</a>`)
+    out = out.replace(/(^|[\s(>])#([\p{L}\p{N}_-]+)/gu, (_whole, lead: string, tag: string) => `${lead}<a href="#" class="md-tag" data-tag="${tag.toLowerCase()}">#${tag}</a>`)
+  }
   return out
 }
 
@@ -32,7 +36,7 @@ const HEADING = /^(#{1,3})\s+(.*)$/
  * the zero-based line of the source, so a click can flip exactly that line
  * with `toggleCheckLine`.
  */
-export function renderMarkdown(body: string): string {
+export function renderMarkdown(body: string, notes = false): string {
   const lines = body.split('\n')
   const out: string[] = []
   let list: 'ul' | 'ol' | 'checks' | null = null
@@ -52,18 +56,18 @@ export function renderMarkdown(body: string): string {
     if (check) {
       open('checks')
       const done = check[2] !== ' '
-      out.push(`<li class="md-check${done ? ' is-done' : ''}"><button type="button" role="checkbox" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}" data-line="${index}" class="md-box"></button><span>${inline(check[3] ?? '')}</span></li>`)
+      out.push(`<li class="md-check${done ? ' is-done' : ''}"><button type="button" role="checkbox" aria-checked="${done}" aria-label="${done ? 'Mark not done' : 'Mark done'}" data-line="${index}" class="md-box"></button><span>${inline(check[3] ?? '', notes)}</span></li>`)
       return
     }
     const bullet = BULLET.exec(line)
-    if (bullet) { open('ul'); out.push(`<li>${inline(bullet[2] ?? '')}</li>`); return }
+    if (bullet) { open('ul'); out.push(`<li>${inline(bullet[2] ?? '', notes)}</li>`); return }
     const numbered = NUMBERED.exec(line)
-    if (numbered) { open('ol'); out.push(`<li>${inline(numbered[2] ?? '')}</li>`); return }
+    if (numbered) { open('ol'); out.push(`<li>${inline(numbered[2] ?? '', notes)}</li>`); return }
     close()
     const heading = HEADING.exec(line)
-    if (heading) { out.push(`<h${heading[1]!.length + 1}>${inline(heading[2] ?? '')}</h${heading[1]!.length + 1}>`); return }
+    if (heading) { out.push(`<h${heading[1]!.length + 1}>${inline(heading[2] ?? '', notes)}</h${heading[1]!.length + 1}>`); return }
     if (!line.trim()) { out.push('<div class="md-gap"></div>'); return }
-    out.push(`<p>${inline(line)}</p>`)
+    out.push(`<p>${inline(line, notes)}</p>`)
   })
   close()
   return out.join('')

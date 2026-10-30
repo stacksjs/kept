@@ -1,7 +1,9 @@
 import { defineStore, derived, state, useStore } from '@stacksjs/stx'
 import { noteTitleAndSnippet } from '../../app/Support/notes'
 import { api } from '../functions/kept/client'
-import { filterNotes, groupNotes, matchSnippet, normalizeNote } from '../functions/kept/notes'
+import { filterNotes, findLinked, groupNotes, matchSnippet, normalizeNote, tagCounts } from '../functions/kept/notes'
+import type { NoteFolderKey } from '../functions/kept/router'
+import { addToTrash, loadTrash, removeFromTrash, saveTrash, type Trashed } from '../functions/kept/trash'
 import type { Note } from '../functions/kept/types'
 
 /**
@@ -9,24 +11,36 @@ import type { Note } from '../functions/kept/types'
  * the title and preview from the body; the same pure rule runs here so the
  * list updates as you type instead of after the save lands.
  */
+const WINDOW = 150
+
 defineStore('notes', () => {
   const items = state<Note[]>([])
   const loaded = state(false)
   const search = state('')
   const saving = state<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const trash = state<Trashed[]>(loadTrash())
+  const limit = state(WINDOW)
 
   const workspace = (): any => useStore('workspace')
-  const folder = derived<'all' | number>(() => {
+  const folder = derived<NoteFolderKey>(() => {
     const route = workspace().route()
     return route.section === 'notes' ? route.folder : 'all'
   })
-  const visible = derived(() => filterNotes(items(), folder(), search()))
-  const sections = derived(() => groupNotes(visible()))
+  const inTrash = derived(() => folder() === 'trash')
+  const trashed = derived<Note[]>(() => trash().map(entry => entry.note))
+  const visible = derived(() => (inTrash() ? filterNotes(trashed(), 'all', search()) : filterNotes(items(), folder(), search())))
+  const hasMore = derived(() => visible().length > limit())
+  const sections = derived(() => groupNotes(visible().slice(0, limit())))
   const selected = derived<Note | null>(() => {
     const route = workspace().route()
     const id = route.section === 'notes' ? route.item : null
-    return id ? items().find(note => note.id === id) ?? null : null
+    if (!id) return null
+    return (inTrash() ? trashed() : items()).find(note => note.id === id) ?? null
   })
+  const tagList = derived(() => tagCounts(items()))
+  const more = (): void => { if (hasMore()) limit.update(n => n + WINDOW) }
+  const resetWindow = (): void => { limit.set(WINDOW) }
+  const deletedEntry = (id: number): Trashed | undefined => trash().find(entry => entry.note.id === id)
   const searching = derived(() => search().trim().length > 0)
   const snippetFor = (note: Note): string => matchSnippet(note, search())
 
@@ -86,10 +100,11 @@ defineStore('notes', () => {
     const current = workspace().route()
     const inFolder = current.section === 'notes' && typeof current.folder === 'number' ? current.folder : null
     search.set('')
+    if (current.section === 'notes' && (current.folder === 'trash' || typeof current.folder === 'string' && current.folder.startsWith('tag:'))) workspace().go({ section: 'notes', folder: 'all', item: null })
     try {
       const note = normalizeNote(await api.saveNote({ body: '', note_folder_id: inFolder }) as unknown as Record<string, unknown>)
       items.update(list => [note, ...list])
-      workspace().go({ section: 'notes', folder: current.section === 'notes' ? current.folder : 'all', item: note.id })
+      workspace().go({ section: 'notes', folder: current.section === 'notes' && (typeof current.folder === 'number') ? current.folder : 'all', item: note.id })
       saving.set('idle')
     }
     catch (cause) { workspace().fail(cause, 'Could not create the note.') }
@@ -110,6 +125,8 @@ defineStore('notes', () => {
 
   async function remove(id: number, quiet = false): Promise<void> {
     if (dirty === id) { dirty = null; clearTimeout(timer) }
+    const gone = items().find(note => note.id === id)
+    if (gone && gone.body.trim()) { trash.set(addToTrash(trash(), gone)); saveTrash(trash()) }
     items.update(list => list.filter(note => note.id !== id))
     if (workspace().route().item === id && workspace().route().section === 'notes') workspace().openItem(null)
     try { await api.deleteNote(id); void workspace().reloadSidebar() }
@@ -133,5 +150,38 @@ defineStore('notes', () => {
     void workspace().reloadSidebar()
   }
 
-  return { items, loaded, search, saving, folder, visible, sections, selected, searching, snippetFor, load, edit, flush, create, open, close, remove, pin, move }
+  /** Put a deleted note back. It is written as a new note, because the server has forgotten the old one. */
+  async function restore(id: number): Promise<void> {
+    const entry = deletedEntry(id)
+    if (!entry) return
+    const { note } = entry
+    const folderExists = !note.note_folder_id || workspace().folders().some((f: { id: number }) => f.id === note.note_folder_id)
+    try {
+      const saved = normalizeNote(await api.saveNote({ body: note.body, pinned: note.pinned, note_folder_id: folderExists ? note.note_folder_id : null }) as unknown as Record<string, unknown>)
+      items.update(list => [saved, ...list])
+      trash.set(removeFromTrash(trash(), id)); saveTrash(trash())
+      workspace().go({ section: 'notes', folder: 'all', item: saved.id })
+      void workspace().reloadSidebar()
+      workspace().say('Note restored')
+    }
+    catch (cause) { workspace().fail(cause, 'Could not restore the note.') }
+  }
+
+  function deleteForever(id: number): void {
+    trash.set(removeFromTrash(trash(), id)); saveTrash(trash())
+    if (workspace().route().item === id) workspace().openItem(null)
+  }
+
+  /** Follow a `[[Title]]` link. */
+  async function openLink(title: string): Promise<void> {
+    const target = findLinked(items(), title)
+    if (!target) { workspace().say(`No note called "${title.slice(0, 40)}".`, 'error'); return }
+    await flush()
+    workspace().go({ section: 'notes', folder: 'all', item: target.id })
+  }
+
+  /** Show every note with a `#tag`. */
+  function openTag(name: string): void { workspace().go({ section: 'notes', folder: `tag:${name}`, item: null }) }
+
+  return { items, loaded, search, saving, trash, trashed, inTrash, folder, visible, sections, selected, searching, tagList, hasMore, more, resetWindow, snippetFor, deletedEntry, load, edit, flush, create, open, close, remove, restore, deleteForever, openLink, openTag, pin, move }
 })
