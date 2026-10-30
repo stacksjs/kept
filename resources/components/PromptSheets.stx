@@ -66,7 +66,7 @@
     <span class="k-grow"><span class="k-name" style="display: block" :text="psWho(person)"></span><span class="k-sub" :text="person.accepted ? safe(person.email) : 'Invited, not signed up yet'"></span></span>
     <label class="sr-only" :for="'ps-r-' + person.id" :text="'Role for ' + psWho(person)"></label>
     <select :id="'ps-r-' + person.id" class="k-select" style="width: auto; min-height: 36px" :value="person.role" @change="psRoleChange(person, $event)"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
-    <button type="button" class="k-icon-btn" :aria-label="'Remove ' + psWho(person)" @click="psPrompts.uninvite(person)"><i class="k-ico i-hugeicons-cancel-01" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" :aria-label="'Remove ' + psWho(person)" @click="psPrompts.uninvite(person)"><i class="i-hugeicons-cancel-01 k-ico" aria-hidden="true"></i></button>
   </div>
 
   <h3 class="k-section" style="padding-left: 0">Public link</h3>
@@ -77,6 +77,6 @@
   <div :if="psPrompts.link()" style="display: flex; gap: 8px; margin-top: 8px">
     <label class="sr-only" for="ps-url">Public link</label>
     <input id="ps-url" class="k-input" type="text" readonly :value="psPrompts.linkUrl()" @focus="$event.target.select()">
-    <button type="button" class="k-btn" @click="psPrompts.copyLink()"><i class="k-ico i-hugeicons-copy-01" aria-hidden="true"></i>Copy</button>
+    <button type="button" class="k-btn" @click="psPrompts.copyLink()"><i class="i-hugeicons-copy-01 k-ico" aria-hidden="true"></i>Copy</button>
   </div>
 </Sheet>

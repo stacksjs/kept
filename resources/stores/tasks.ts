@@ -7,7 +7,7 @@ import type { ChecklistItem, Todo } from '../functions/kept/types'
 /** A titled run of rows in a pane: Today's two halves, one day of Upcoming, one day of the Logbook. */
 export interface Group { key: string, label: string, sub: string, icon: string, bucket: '' | 'today' | 'evening', reorder: boolean, items: Todo[] }
 
-const WINDOW = 120
+const WINDOW = 40
 
 /**
  * Every to-do the person has, held once. Smart lists, projects, areas and the

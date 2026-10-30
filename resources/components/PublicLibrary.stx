@@ -1,4 +1,5 @@
 <script client>
+  import { libraryColor, libraryIcon } from '../functions/kept/promptview'
   import { api, copyText, lastPathSegment } from '../functions/kept/client'
   import { ApiError } from '../functions/kept/api'
   import { fillPrompt } from '../../app/Support/prompts'
@@ -53,7 +54,7 @@
 
 <main style="max-width: 760px; margin: 0 auto; padding: 32px 16px 80px">
   <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 28px">
-    <span class="k-mark" style="width: 30px; height: 30px; border-radius: 9px; margin: 0" aria-hidden="true"><i class="k-ico i-hugeicons-checkmark-circle-02"></i></span>
+    <span class="k-mark" style="width: 30px; height: 30px; border-radius: 9px; margin: 0" aria-hidden="true"><i class="i-hugeicons-checkmark-circle-02 k-ico"></i></span>
     <strong style="flex: 1; font-size: 17px">Library</strong>
     <button type="button" class="k-icon-btn" :aria-label="'Appearance: ' + pbThemeLabel() + '. Change'" @click="pbCycleTheme()"><i class="k-ico" :class="pbThemeIcon()" aria-hidden="true"></i></button>
   </div>
@@ -61,17 +62,17 @@
   <div :if="pbStatus() === 'loading'" class="k-sub" role="status">Loading prompts.</div>
 
   <div :if="pbStatus() === 'gone'" class="k-empty" style="min-height: 50dvh">
-    <i class="k-ico i-hugeicons-link-02" aria-hidden="true"></i>
+    <i class="i-hugeicons-link-02 k-ico" aria-hidden="true"></i>
     <p>This link is no longer active. Ask the owner for a new one.</p>
   </div>
   <div :if="pbStatus() === 'error'" class="k-empty" style="min-height: 50dvh">
-    <i class="k-ico i-hugeicons-alert-circle" aria-hidden="true"></i>
+    <i class="i-hugeicons-alert-circle k-ico" aria-hidden="true"></i>
     <p>We could not load these prompts. Try again in a moment.</p>
   </div>
 
   <div :if="pbStatus() === 'ready'">
     <header style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px">
-      <span class="k-lib-badge" style="width: 48px; height: 48px; border-radius: 12px" :style="'background:' + (pbLibrary().color || 'var(--accent)')"><i class="k-ico" style="width: 26px; height: 26px" :class="pbLibrary().icon || 'i-hugeicons-book-02'" aria-hidden="true"></i></span>
+      <span class="k-lib-badge" style="width: 48px; height: 48px; border-radius: 12px" :style="'background:' + libraryColor(pbLibrary().color)"><i class="k-ico" style="width: 26px; height: 26px" :class="libraryIcon(pbLibrary().icon)" aria-hidden="true"></i></span>
       <div style="min-width: 0">
         <h1 class="k-title" :text="safe(pbLibrary().title)"></h1>
         <p class="k-sub" style="margin: 4px 0 0" :text="safe(pbLibrary().description || ('Shared by ' + (pbLibrary().owner || 'someone')))"></p>
@@ -80,7 +81,7 @@
     </header>
 
     <div class="k-search" style="margin: 0 0 12px">
-      <i class="k-ico i-hugeicons-search-01" aria-hidden="true"></i>
+      <i class="i-hugeicons-search-01 k-ico" aria-hidden="true"></i>
       <label class="sr-only" for="pb-search">Search prompts</label>
       <input id="pb-search" type="search" x-model="pbSearch" placeholder="Search prompts" autocomplete="off">
     </div>
@@ -104,6 +105,6 @@
         </div>
       </li>
     </ul>
-    <div :if="pbPrompts().length === 0" class="k-empty"><i class="k-ico i-hugeicons-sparkles" aria-hidden="true"></i><p :text="pbSearch() ? 'No prompts match your search.' : 'This library has no prompts yet.'"></p></div>
+    <div :if="pbPrompts().length === 0" class="k-empty"><i class="i-hugeicons-sparkles k-ico" aria-hidden="true"></i><p :text="pbSearch() ? 'No prompts match your search.' : 'This library has no prompts yet.'"></p></div>
   </div>
 </main>

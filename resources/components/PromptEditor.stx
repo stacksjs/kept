@@ -59,20 +59,20 @@
   }
 </script>
 
-<section class="k-pane k-detail" aria-label="Prompt">
+<section class="k-detail k-pane" aria-label="Prompt">
   <EmptyState :if="!peDraft()" icon="i-hugeicons-sparkles" text="Select a prompt, or add a new one." />
 
   <div :if="peDraft()" class="k-pane" style="flex: 1">
     <div class="k-toolbar">
-      <button type="button" class="k-icon-btn k-back k-back-detail" aria-label="Back to prompts" @click="pePrompts.close()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
-      <button type="button" class="k-btn k-btn-primary" @click="pePrompts.startUse()"><i class="k-ico i-hugeicons-magic-wand-01" aria-hidden="true"></i>Use</button>
-      <button type="button" class="k-icon-btn" aria-label="Version history" title="History" @click="pePrompts.showVersions()"><i class="k-ico i-hugeicons-history" aria-hidden="true"></i></button>
-      <button type="button" class="k-icon-btn" :aria-pressed="peDraft().favorite ? 'true' : 'false'" :aria-label="peDraft().favorite ? 'Remove from favorites' : 'Add to favorites'" :disabled="peReadOnly()" @click="pePrompts.toggleFavorite(peDraft().id)"><i class="k-ico i-hugeicons-favourite" aria-hidden="true"></i></button>
+      <button type="button" class="k-back k-back-detail k-icon-btn" aria-label="Back to prompts" @click="pePrompts.close()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
+      <button type="button" class="k-btn k-btn-primary" @click="pePrompts.startUse()"><i class="i-hugeicons-magic-wand-01 k-ico" aria-hidden="true"></i>Use</button>
+      <button type="button" class="k-icon-btn" aria-label="Version history" title="History" @click="pePrompts.showVersions()"><i class="i-hugeicons-history k-ico" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :aria-pressed="peDraft().favorite ? 'true' : 'false'" :aria-label="peDraft().favorite ? 'Remove from favorites' : 'Add to favorites'" :disabled="peReadOnly()" @click="pePrompts.toggleFavorite(peDraft().id)"><i class="i-hugeicons-favourite k-ico" aria-hidden="true"></i></button>
       <span style="flex: 1"></span>
       <span class="k-sub" aria-live="polite" :text="peStatus()"></span>
       <button type="button" class="k-btn" :if="!peReadOnly()" :disabled="!pePrompts.dirty() || pePrompts.saving()" title="Save (Cmd+S)" @click="pePrompts.save()">Save</button>
       <MoreMenu :if="!peReadOnly()" label="Prompt options">
-        <button type="button" role="menuitem" class="is-danger" @click="peAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete prompt</button>
+        <button type="button" role="menuitem" class="is-danger" @click="peAskDelete()"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i>Delete prompt</button>
       </MoreMenu>
     </div>
 
@@ -87,7 +87,7 @@
           <label class="k-label" for="pe-body">Prompt</label>
           <div class="k-ghost-wrap" :if="!peReadOnly()">
             <GhostText variant="prompt" />
-            <textarea id="pe-body" class="k-textarea k-ghost-ta" style="min-height: 200px; line-height: 1.6; font-size: 15px; field-sizing: content" :value="peDraft().body" placeholder="Write the prompt. Wrap a name in double curly braces to leave a value to fill in later." @input="peBodyInput($event)" @keydown="peBodyKey($event)" @blur="peGhost.dismiss()" @mousedown="peGhost.dismiss()"></textarea>
+            <textarea id="pe-body" class="k-ghost-ta k-textarea" style="min-height: 200px; line-height: 1.6; font-size: 15px; field-sizing: content" :value="peDraft().body" placeholder="Write the prompt. Wrap a name in double curly braces to leave a value to fill in later." @input="peBodyInput($event)" @keydown="peBodyKey($event)" @blur="peGhost.dismiss()" @mousedown="peGhost.dismiss()"></textarea>
           </div>
           <div class="k-filled" :if="peReadOnly()"><template :for="part in peParts()"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
           <div class="k-vars" :if="peVariables().length">
@@ -111,7 +111,7 @@
           <label class="k-label" for="pe-tags">Tags</label>
           <div class="k-pills" style="margin-bottom: 6px">
             <span class="k-chip k-chip-accent" :for="tag in peDraft().tags" :key="tag" style="min-height: 30px"><span :text="safe(tag)"></span>
-              <button type="button" class="k-icon-btn" :if="!peReadOnly()" style="width: 22px; height: 22px" :aria-label="safe('Remove tag ' + tag)" @click="peDropTag(tag)"><i class="k-ico i-hugeicons-cancel-01" style="width: 12px; height: 12px" aria-hidden="true"></i></button>
+              <button type="button" class="k-icon-btn" :if="!peReadOnly()" style="width: 22px; height: 22px" :aria-label="safe('Remove tag ' + tag)" @click="peDropTag(tag)"><i class="i-hugeicons-cancel-01 k-ico" style="width: 12px; height: 12px" aria-hidden="true"></i></button>
             </span>
           </div>
           <form :if="!peReadOnly()" @submit="peAddTags($event)"><input id="pe-tags" class="k-input" type="text" x-model="peTagText" placeholder="Add a tag and press Enter"></form>

@@ -43,25 +43,25 @@
   }
 </script>
 
-<section class="k-pane k-main" aria-label="Notes">
+<section class="k-main k-pane" aria-label="Notes">
   <header class="k-head">
-    <button type="button" class="k-icon-btn k-back k-back-main" aria-label="Back to lists" @click="nlWs.back()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
+    <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="nlWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
     <h1 class="k-title" :text="safe(nlTitle())"></h1>
     <MoreMenu :if="nlIsFolder()" label="Folder options">
-      <button type="button" role="menuitem" class="is-danger" @click="nlAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete folder</button>
+      <button type="button" role="menuitem" class="is-danger" @click="nlAskDelete()"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i>Delete folder</button>
     </MoreMenu>
-    <button type="button" class="k-icon-btn" :if="!nlNotes.inTrash()" aria-label="New note" title="New note (N)" @click="nlNotes.create()"><i class="k-ico k-ico-lg i-hugeicons-note-add" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" :if="!nlNotes.inTrash()" aria-label="New note" title="New note (N)" @click="nlNotes.create()"><i class="i-hugeicons-note-add k-ico k-ico-lg" aria-hidden="true"></i></button>
   </header>
 
   <div class="k-search">
-    <i class="k-ico i-hugeicons-search-01" aria-hidden="true"></i>
+    <i class="i-hugeicons-search-01 k-ico" aria-hidden="true"></i>
     <label class="sr-only" for="nl-search">Search notes</label>
     <input id="nl-search" type="search" data-focus="search" x-model="nlSearch" placeholder="Search notes" autocomplete="off">
   </div>
 
   <div class="k-scroll" @scroll="nlScroll($event)">
     <div :for="section in nlNotes.sections()" :key="section.key">
-      <h2 class="k-section" :if="section.label"><i class="k-ico i-hugeicons-pin" :if="section.key === 'pinned'" style="width: 14px; height: 14px" aria-hidden="true"></i><span :text="section.label"></span></h2>
+      <h2 class="k-section" :if="section.label"><i class="i-hugeicons-pin k-ico" :if="section.key === 'pinned'" style="width: 14px; height: 14px" aria-hidden="true"></i><span :text="section.label"></span></h2>
       <ul class="k-rows" role="list">
         <li :for="note in section.notes" :key="note.id" role="listitem">
           <button type="button" class="k-note" :aria-current="nlOpenId() === note.id ? 'true' : 'false'" @click="nlNotes.open(note.id)">

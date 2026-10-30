@@ -76,25 +76,25 @@
   }
 </script>
 
-<section class="k-pane k-main" aria-label="To-dos">
+<section class="k-main k-pane" aria-label="To-dos">
   <header class="k-head">
-    <button type="button" class="k-icon-btn k-back k-back-main" aria-label="Back to lists" @click="tpWs.back()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
+    <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="tpWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
     <ProgressRing :if="tpProject()" :value="tpTasks.ring(tpProject() ? tpProject().id : 0)" :size="26" />
     <i class="k-gl k-gl-xl" :if="tpGlyph()" :class="tpGlyph()" aria-hidden="true"></i>
-    <i class="k-ico k-gl-xl i-hugeicons-folder-02" :if="tpArea()" style="color: var(--text-3)" aria-hidden="true"></i>
+    <i class="i-hugeicons-folder-02 k-gl-xl k-ico" :if="tpArea()" style="color: var(--text-3)" aria-hidden="true"></i>
     <div style="flex: 1; min-width: 0">
       <h1 class="k-title" :if="!tpEditing()" :text="safe(tpTitle())" :tabindex="tpEditable() ? 0 : null" @click="tpEditable() && tpEdit()" @keydown="tpEditable() && $event.key === 'Enter' && tpEdit()" :aria-label="tpEditable() ? safe(tpTitle()) + ', press Enter to rename' : null" :title="tpEditable() ? 'Rename' : null"></h1>
       <input class="k-title-input" :if="tpEditing()" x-model="tpName" aria-label="Name" data-focus="rename" @blur="tpCommitName()" @keydown="tpNameKey($event)">
       <p class="k-sub" :if="tpSubtitle()" style="margin: 2px 0 0" :text="tpSubtitle()"></p>
     </div>
     <div class="k-search" :if="tpSearching()" style="margin: 0; width: 220px">
-      <i class="k-ico i-hugeicons-search-01" aria-hidden="true"></i>
+      <i class="i-hugeicons-search-01 k-ico" aria-hidden="true"></i>
       <label class="sr-only" for="tp-search">Search to-dos</label>
       <input id="tp-search" type="search" data-focus="search" x-model="tpQuery" placeholder="Search" autocomplete="off" @keydown="tpSearchKey($event)">
     </div>
     <MoreMenu :if="tpEditable()" label="Options">
-      <button type="button" role="menuitem" @click="tpEdit()"><i class="k-ico i-hugeicons-pencil-edit-02" aria-hidden="true"></i>Rename</button>
-      <button type="button" role="menuitem" class="is-danger" @click="tpAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete</button>
+      <button type="button" role="menuitem" @click="tpEdit()"><i class="i-hugeicons-pencil-edit-02 k-ico" aria-hidden="true"></i>Rename</button>
+      <button type="button" role="menuitem" class="is-danger" @click="tpAskDelete()"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i>Delete</button>
     </MoreMenu>
   </header>
 
@@ -120,9 +120,9 @@
   </div>
 
   <div class="k-bar" role="toolbar" aria-label="To-do actions">
-    <button type="button" class="k-icon-btn" aria-label="New to-do" title="New to-do (N)" :disabled="!tpTasks.canAdd()" @click="tpTasks.startDraft()"><i class="k-ico k-ico-lg i-hugeicons-plus-sign" aria-hidden="true"></i></button>
-    <button type="button" class="k-icon-btn" aria-label="Schedule the open to-do" title="When" :disabled="!tpOpenId()" @click="tpNeeds('when')"><i class="k-ico k-ico-lg i-hugeicons-calendar-03" aria-hidden="true"></i></button>
-    <button type="button" class="k-icon-btn" aria-label="Move the open to-do" title="Move" :disabled="!tpOpenId()" @click="tpNeeds('more')"><i class="k-ico k-ico-lg i-hugeicons-arrow-right-02" aria-hidden="true"></i></button>
-    <button type="button" class="k-icon-btn" aria-label="Search" title="Search (/)" :aria-pressed="tpSearching() ? 'true' : 'false'" @click="tpToggleSearch()"><i class="k-ico k-ico-lg i-hugeicons-search-01" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="New to-do" title="New to-do (N)" :disabled="!tpTasks.canAdd()" @click="tpTasks.startDraft()"><i class="i-hugeicons-plus-sign k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Schedule the open to-do" title="When" :disabled="!tpOpenId()" @click="tpNeeds('when')"><i class="i-hugeicons-calendar-03 k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Move the open to-do" title="Move" :disabled="!tpOpenId()" @click="tpNeeds('more')"><i class="i-hugeicons-arrow-right-02 k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Search" title="Search (/)" :aria-pressed="tpSearching() ? 'true' : 'false'" @click="tpToggleSearch()"><i class="i-hugeicons-search-01 k-ico k-ico-lg" aria-hidden="true"></i></button>
   </div>
 </section>

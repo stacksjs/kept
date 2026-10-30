@@ -11,7 +11,7 @@ import type { Note } from '../functions/kept/types'
  * the title and preview from the body; the same pure rule runs here so the
  * list updates as you type instead of after the save lands.
  */
-const WINDOW = 150
+const WINDOW = 40
 
 defineStore('notes', () => {
   const items = state<Note[]>([])

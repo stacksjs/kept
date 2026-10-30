@@ -64,7 +64,7 @@ export function focusField(name: string): void {
 
 /** Keep the keyboard cursor row in view. */
 export function scrollCursorIntoView(): void {
-  globalThis.document?.querySelector('[data-cursor="true"]')?.scrollIntoView({ block: 'nearest' })
+  globalThis.document?.querySelector('[data-state~="cursor"]')?.scrollIntoView({ block: 'nearest' })
 }
 
 /** True on a window wide enough for the sidebar and list side by side. */

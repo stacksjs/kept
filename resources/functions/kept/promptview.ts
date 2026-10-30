@@ -57,3 +57,13 @@ export const LIBRARY_ICONS = ['i-hugeicons-book-02', 'i-hugeicons-pen-tool-03', 
 export function publicLinkUrl(origin: string, token: string): string {
   return `${origin.replace(/\/+$/, '')}/p/${token}`
 }
+
+/** A library's icon is stored as free text; only an Iconify class is drawn, anything else falls back to the book. */
+export function libraryIcon(icon: string | null | undefined): string {
+  return typeof icon === 'string' && /^i-[a-z0-9]+-[a-z0-9-]+$/.test(icon) ? icon : 'i-hugeicons-book-02'
+}
+
+/** A library's colour is stored as free text too; only a hex colour is used. */
+export function libraryColor(color: string | null | undefined): string {
+  return typeof color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(color) ? color : '#1f6bff'
+}

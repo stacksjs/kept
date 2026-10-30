@@ -1,4 +1,5 @@
 <script client>
+  import { libraryColor, libraryIcon } from '../functions/kept/promptview'
   import { safe } from '../functions/kept/safe'
   import { initials } from '../functions/kept/format'
 
@@ -25,7 +26,6 @@
   effect(() => { if (plId()) { plSearch.set(''); } })
 
   const plPreview = (prompt) => safe(prompt.description || prompt.body.replace(/\s+/g, ' ').slice(0, 120) || 'Empty prompt')
-  const plBadge = (lib) => ({ background: lib.color || 'var(--accent)' })
 
   async function plCreateLibrary(event) {
     event.preventDefault()
@@ -39,13 +39,13 @@
   }
 </script>
 
-<section class="k-pane k-main" aria-label="Prompts">
+<section class="k-main k-pane" aria-label="Prompts">
   <!-- Library overview -->
   <div :if="!plId()" class="k-pane" style="flex: 1">
     <header class="k-head">
-      <button type="button" class="k-icon-btn k-back k-back-main" aria-label="Back to lists" @click="plWs.back()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
+      <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="plWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
       <h1 class="k-title">Prompt libraries</h1>
-      <button type="button" class="k-icon-btn" aria-label="New library" title="New library" @click="plNew.set(true)"><i class="k-ico k-ico-lg i-hugeicons-plus-sign" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" aria-label="New library" title="New library" @click="plNew.set(true)"><i class="i-hugeicons-plus-sign k-ico k-ico-lg" aria-hidden="true"></i></button>
     </header>
     <div class="k-scroll">
       <form class="k-quick" :if="plNew()" @submit="plCreateLibrary($event)">
@@ -55,9 +55,9 @@
       <ul class="k-rows" role="list">
         <li :for="lib in plOwned()" :key="lib.id" role="listitem">
           <button type="button" class="k-prompt" style="display: flex; gap: 12px; align-items: center" @click="plWs.open({ section: 'prompts', library: lib.id, item: null })">
-            <span class="k-lib-badge" :style="'background:' + (lib.color || 'var(--accent)')"><i class="k-ico" :class="lib.icon || 'i-hugeicons-book-02'" aria-hidden="true"></i></span>
+            <span class="k-lib-badge" :style="'background:' + libraryColor(lib.color)"><i class="k-ico" :class="libraryIcon(lib.icon)" aria-hidden="true"></i></span>
             <span style="flex: 1; min-width: 0"><strong style="display: block" :text="safe(lib.title)"></strong><span class="k-sub" :text="safe(lib.description || (lib.prompts || 0) + ' prompts')"></span></span>
-            <i class="k-ico i-hugeicons-link-02" :if="lib.linked" style="color: var(--text-3)" aria-label="Has a public link"></i>
+            <i class="i-hugeicons-link-02 k-ico" :if="lib.linked" style="color: var(--text-3)" aria-label="Has a public link"></i>
           </button>
         </li>
       </ul>
@@ -65,7 +65,7 @@
       <ul class="k-rows" role="list" :if="plShared().length">
         <li :for="lib in plShared()" :key="'s' + lib.id" role="listitem">
           <button type="button" class="k-prompt" style="display: flex; gap: 12px; align-items: center" @click="plWs.open({ section: 'prompts', library: lib.id, item: null })">
-            <span class="k-lib-badge" :style="'background:' + (lib.color || 'var(--accent)')"><i class="k-ico" :class="lib.icon || 'i-hugeicons-book-02'" aria-hidden="true"></i></span>
+            <span class="k-lib-badge" :style="'background:' + libraryColor(lib.color)"><i class="k-ico" :class="libraryIcon(lib.icon)" aria-hidden="true"></i></span>
             <span style="flex: 1; min-width: 0"><strong style="display: block" :text="safe(lib.title)"></strong><span class="k-sub" :text="safe('From ' + (lib.owner || 'someone'))"></span></span>
             <span class="k-chip" :text="lib.role"></span>
           </button>
@@ -78,27 +78,27 @@
   <!-- One library -->
   <div :if="plId()" class="k-pane" style="flex: 1">
     <header class="k-head">
-      <button type="button" class="k-icon-btn k-back k-back-main" aria-label="Back to lists" @click="plWs.back()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
-      <span class="k-lib-badge" :if="plLibrary()" :style="'background:' + (plLibrary().color || 'var(--accent)')"><i class="k-ico" :class="plLibrary().icon || 'i-hugeicons-book-02'" aria-hidden="true"></i></span>
+      <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="plWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
+      <span class="k-lib-badge" :if="plLibrary()" :style="'background:' + libraryColor(plLibrary().color)"><i class="k-ico" :class="libraryIcon(plLibrary().icon)" aria-hidden="true"></i></span>
       <div style="flex: 1; min-width: 0">
         <h1 class="k-title" style="font-size: 22px" :text="plLibrary() ? safe(plLibrary().title) : ''"></h1>
         <p class="k-sub" :if="plSub()" style="margin: 2px 0 0" :text="plSub()"></p>
       </div>
-      <button type="button" class="k-icon-btn" :if="plPrompts.isOwner()" aria-label="Share library" title="Share" @click="plPrompts.showShare()"><i class="k-ico k-ico-lg i-hugeicons-share-08" aria-hidden="true"></i></button>
-      <button type="button" class="k-icon-btn" :if="plPrompts.canEdit()" aria-label="New prompt" title="New prompt (N)" @click="plPrompts.create()"><i class="k-ico k-ico-lg i-hugeicons-plus-sign" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :if="plPrompts.isOwner()" aria-label="Share library" title="Share" @click="plPrompts.showShare()"><i class="i-hugeicons-share-08 k-ico k-ico-lg" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :if="plPrompts.canEdit()" aria-label="New prompt" title="New prompt (N)" @click="plPrompts.create()"><i class="i-hugeicons-plus-sign k-ico k-ico-lg" aria-hidden="true"></i></button>
       <MoreMenu :if="plPrompts.isOwner()" label="Library options">
-        <button type="button" role="menuitem" @click="plEditSheet.set(true)"><i class="k-ico i-hugeicons-pencil-edit-02" aria-hidden="true"></i>Edit library</button>
-        <button type="button" role="menuitem" class="is-danger" @click="plAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete library</button>
+        <button type="button" role="menuitem" @click="plEditSheet.set(true)"><i class="i-hugeicons-pencil-edit-02 k-ico" aria-hidden="true"></i>Edit library</button>
+        <button type="button" role="menuitem" class="is-danger" @click="plAskDelete()"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i>Delete library</button>
       </MoreMenu>
     </header>
 
     <div style="display: flex; align-items: center; gap: 8px; padding-right: 12px">
       <div class="k-search" style="flex: 1">
-        <i class="k-ico i-hugeicons-search-01" aria-hidden="true"></i>
+        <i class="i-hugeicons-search-01 k-ico" aria-hidden="true"></i>
         <label class="sr-only" for="pl-search">Search prompts</label>
         <input id="pl-search" type="search" data-focus="search" x-model="plSearch" placeholder="Search prompts" autocomplete="off">
       </div>
-      <button type="button" class="k-pill" :aria-pressed="plPrompts.favoritesOnly() ? 'true' : 'false'" @click="plPrompts.favoritesOnly.update(v => !v)"><i class="k-ico i-hugeicons-favourite" style="width: 15px; height: 15px" aria-hidden="true"></i>Favorites</button>
+      <button type="button" class="k-pill" :aria-pressed="plPrompts.favoritesOnly() ? 'true' : 'false'" @click="plPrompts.favoritesOnly.update(v => !v)"><i class="i-hugeicons-favourite k-ico" style="width: 15px; height: 15px" aria-hidden="true"></i>Favorites</button>
     </div>
 
     <div class="k-scroll">

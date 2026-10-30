@@ -32,7 +32,7 @@ const { open = false, title = '', drawer = false } = defineProps<SheetProps>()
   <div class="k-sheet" ref="shPanel" role="dialog" aria-modal="true" :aria-label="shTitle()" @click="$event.stopPropagation()" @keydown="shKey($event)">
     <div class="k-sheet-head">
       <h2 :text="shTitle()"></h2>
-      <button type="button" class="k-icon-btn" aria-label="Close" @click="shEmit('close')"><i class="k-ico i-hugeicons-cancel-01" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" aria-label="Close" @click="shEmit('close')"><i class="i-hugeicons-cancel-01 k-ico" aria-hidden="true"></i></button>
     </div>
     <slot />
   </div>

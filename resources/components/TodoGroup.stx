@@ -37,6 +37,30 @@ const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = fals
   }
   const tgDropState = (todo) => { const d = tgDrop(); return d && d.id === todo.id ? (d.after ? 'after' : 'before') : null }
 
+  // One list of chips per row (deadline, project, checklist progress, repeat, tags), so a row has a single loop instead of five conditionals.
+  function tgChips(todo) {
+    const chips = []
+    if (todo.deadline && !todo.completed_at) chips.push({ key: 'due', icon: 'i-hugeicons-flag-02', text: tgDeadline(todo), tone: tgDeadlineState(todo) === 'overdue' ? 'k-chip-danger' : tgDeadlineState(todo) === 'today' ? 'k-chip-accent' : '' })
+    const project = tgProject(todo)
+    if (project) chips.push({ key: 'project', icon: 'i-hugeicons-folder-02', text: safe(project), tone: '' })
+    const checks = tgChecks(todo)
+    if (checks) chips.push({ key: 'checks', icon: 'i-hugeicons-check-list', text: checks, tone: '' })
+    if (todo.repeat !== 'none') chips.push({ key: 'repeat', icon: 'i-hugeicons-repeat', text: todo.repeat, tone: '' })
+    for (const tag of todo.tags) chips.push({ key: 'tag:' + tag, icon: 'i-hugeicons-tag-01', text: safe(tag), tone: '' })
+    return chips
+  }
+
+  // One attribute carries every visual state of a row (cursor, done, leaving, drop line), so a row costs one binding for them, not four.
+  function tgRowState(todo) {
+    let state = ''
+    if (tgTasks.cursor() === todo.id) state += ' cursor'
+    if (tgIsDone(todo)) state += ' done'
+    if (tgLeaving(todo)) state += ' leaving'
+    const drop = tgDropState(todo)
+    if (drop) state += ' drop-' + drop
+    return state.trim()
+  }
+
   function tgOpen(todo) { tgTasks.cursor.set(todo.id); tgWs.openItem(todo.id); focusField('todo-title') }
   function tgToggle(event, todo) { event.stopPropagation(); tgTasks.toggle(todo) }
   function tgDragStart(event, todo) {
@@ -70,30 +94,21 @@ const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = fals
 
 <section>
   <h2 class="k-section" :if="tgLabel()">
-    <i class="k-gl i-f7-moon-fill k-gl-evening" :if="tgBucket() === 'evening'" style="width: 16px; height: 16px" aria-hidden="true"></i>
+    <i class="i-f7-moon-fill k-gl k-gl-evening" :if="tgBucket() === 'evening'" style="width: 16px; height: 16px" aria-hidden="true"></i>
     <span :text="tgLabel()"></span>
     <span class="k-sub" :if="tgSub()" :text="tgSub()"></span>
   </h2>
   <p class="k-sub" :if="tgItems().length === 0 && tgLabel() && tgBucket()" style="padding: 8px 10px 12px" @dragover="tgTasks.dragging() !== null && $event.preventDefault()" @drop="tgDropEmpty($event)">Drag a to-do here.</p>
   <ul class="k-rows" role="list" :if="tgItems().length > 0" style="padding: 0">
     <template :for="todo in tgItems()" :key="todo.id">
-      <li class="k-row" :if="tgOpenId() !== todo.id" role="listitem"
-          :data-cursor="tgTasks.cursor() === todo.id ? 'true' : 'false'" :data-done="tgIsDone(todo) ? 'true' : 'false'" :data-leaving="tgLeaving(todo) ? 'true' : 'false'" :data-drop="tgDropState(todo)"
-          :draggable="tgCanDrag() ? 'true' : 'false'" @click="tgOpen(todo)" @dragstart="tgDragStart($event, todo)" @dragover="tgDragOver($event, todo)" @drop="tgDropOn($event, todo)" @dragend="tgDragEnd()">
+      <li class="k-row" :if="tgOpenId() !== todo.id" role="listitem" draggable="true"
+          :data-state="tgRowState(todo)" @click="tgOpen(todo)" @dragstart="tgDragStart($event, todo)" @dragover="tgDragOver($event, todo)" @drop="tgDropOn($event, todo)" @dragend="tgDragEnd()">
         <button type="button" class="k-check" role="checkbox" :aria-checked="tgIsDone(todo) ? 'true' : 'false'" :aria-label="safe((tgIsDone(todo) ? 'Mark not done: ' : 'Complete: ') + todo.title)" @click="tgToggle($event, todo)">
-          <i class="k-tick i-hugeicons-tick-02" aria-hidden="true"></i>
+          <i class="i-hugeicons-tick-02 k-tick" aria-hidden="true"></i>
         </button>
         <div class="k-row-body">
-          <button type="button" class="k-row-title" :aria-label="safe('Open: ' + todo.title)"><span :text="safe(todo.title || 'New to-do')"></span><i class="k-ico k-note-icon i-hugeicons-file-01" :if="todo.notes" aria-hidden="true"></i></button>
-          <div class="k-meta" :if="todo.deadline || todo.tags.length || tgProject(todo) || tgChecks(todo) || todo.repeat !== 'none'">
-            <span class="k-chip" :class="tgDeadlineState(todo) === 'overdue' ? 'k-chip-danger' : tgDeadlineState(todo) === 'today' ? 'k-chip-accent' : ''" :if="todo.deadline && !todo.completed_at">
-              <i class="k-ico i-hugeicons-flag-02" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="tgDeadline(todo)"></span>
-            </span>
-            <span class="k-chip" :if="tgProject(todo)"><i class="k-ico i-hugeicons-folder-02" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="safe(tgProject(todo))"></span></span>
-            <span class="k-chip" :if="tgChecks(todo)"><i class="k-ico i-hugeicons-check-list" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="tgChecks(todo)"></span></span>
-            <span class="k-chip" :if="todo.repeat !== 'none'"><i class="k-ico i-hugeicons-repeat" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="todo.repeat"></span></span>
-            <span class="k-chip" :for="tag in todo.tags" :key="tag"><i class="k-ico i-hugeicons-tag-01" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="safe(tag)"></span></span>
-          </div>
+          <button type="button" class="k-row-title"><span :text="safe(todo.title || 'New to-do')"></span><i class="i-hugeicons-file-01 k-ico k-note-icon" :if="todo.notes" aria-hidden="true"></i></button>
+          <div class="k-meta" :if="tgChips(todo).length"><span class="k-chip" :for="chip in tgChips(todo)" :key="chip.key" :class="chip.tone"><i class="k-ico" :class="chip.icon" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="chip.text"></span></span></div>
         </div>
       </li>
       <li class="k-card" :if="tgOpenId() === todo.id"><TodoEditor /></li>

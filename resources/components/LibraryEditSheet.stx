@@ -3,6 +3,7 @@ interface LibraryEditSheetProps { open?: boolean }
 const { open = false } = defineProps<LibraryEditSheetProps>()
 </script>
 <script client>
+  import { libraryColor, libraryIcon } from '../functions/kept/promptview'
   const lsOpen = useReactiveProp('open', false)
   const lsEmit = defineEmits()
   const lsPrompts = useStore('prompts')
@@ -23,7 +24,7 @@ const { open = false } = defineProps<LibraryEditSheetProps>()
   effect(() => {
     if (lsIsOpen()) {
       const lib = lsPrompts.library()
-      if (lib) { lsTitle.set(lib.title); lsDescription.set(lib.description || ''); lsColor.set(lib.color || '#1f6bff'); lsIcon.set(lib.icon || 'i-hugeicons-book-02') }
+      if (lib) { lsTitle.set(lib.title); lsDescription.set(lib.description || ''); lsColor.set(libraryColor(lib.color)); lsIcon.set(libraryIcon(lib.icon)) }
     }
   })
   async function lsSave(event) {
