@@ -37,7 +37,10 @@ export default {
    */
   proxy: {
     prefixes: [],
-    paths: [],
+    // `GET /me` answers the signed-in user (and seeds the CSRF cookie the
+    // sign-in and sign-up posts echo back). POST /login, /register and /logout
+    // are forwarded already, as every mutating verb is.
+    paths: ['/me'],
   },
 
   /**
