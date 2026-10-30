@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { checkProgress, continueList, inline, renderMarkdown, toggleCheckLine } from '../../resources/functions/kept/markdown'
+import { applyFormat, checkProgress, continueList, inline, renderMarkdown, toggleCheckLine } from '../../resources/functions/kept/markdown'
 
 describe('markdown', () => {
   it('escapes markup before formatting', () => {
@@ -51,5 +51,22 @@ describe('markdown', () => {
     expect(continueList('- [ ] ', 6)).toEqual({ body: '', caret: 0 })
     expect(continueList('plain', 5)).toBeNull()
     expect(continueList('a\n- b\nc', 7)).toBeNull()
+  })
+
+  it('wraps and unwraps bold and italic around the selection', () => {
+    expect(applyFormat('make it loud', 8, 12, 'bold')).toEqual({ body: 'make it **loud**', start: 10, end: 14 })
+    expect(applyFormat('a **b** c', 2, 7, 'bold')).toEqual({ body: 'a b c', start: 2, end: 3 })
+    expect(applyFormat('', 0, 0, 'italic')).toEqual({ body: '*italic*', start: 1, end: 7 })
+  })
+
+  it('cycles headings and toggles list and check prefixes on the current line', () => {
+    expect(applyFormat('Title', 2, 2, 'heading').body).toBe('# Title')
+    expect(applyFormat('# Title', 2, 2, 'heading').body).toBe('## Title')
+    expect(applyFormat('### Title', 2, 2, 'heading').body).toBe('Title')
+    expect(applyFormat('one\ntwo', 5, 5, 'check').body).toBe('one\n- [ ] two')
+    expect(applyFormat('- [x] two', 3, 3, 'check').body).toBe('two')
+    expect(applyFormat('- two', 3, 3, 'check').body).toBe('- [ ] two')
+    expect(applyFormat('two', 1, 1, 'list').body).toBe('- two')
+    expect(applyFormat('- two', 1, 1, 'list').body).toBe('two')
   })
 })

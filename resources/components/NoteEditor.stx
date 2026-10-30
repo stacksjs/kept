@@ -1,0 +1,100 @@
+<script client>
+  import { applyFormat, checkProgress, continueList, renderMarkdown, toggleCheckLine } from '../functions/kept/markdown'
+
+  const neWs = useStore('workspace')
+  const neNotes = useStore('notes')
+  const neNote = neNotes.selected
+  const neMode = state('write')
+  const neArea = useRef('neArea')
+  const neRendered = derived(() => (neNote() ? renderMarkdown(neNote().body) : ''))
+  const neProgress = derived(() => (neNote() ? checkProgress(neNote().body) : { done: 0, total: 0 }))
+  const neStatus = derived(() => ({ idle: '', saving: 'Saving', saved: 'Saved', error: 'Not saved' }[neNotes.saving()]))
+  const neFolder = derived(() => (neNote() && neNote().note_folder_id ? String(neNote().note_folder_id) : ''))
+
+  let neLast = 0
+  effect(() => {
+    const note = neNote()
+    if (note && note.id !== neLast) {
+      neLast = note.id
+      neMode.set('write')
+      if (!note.body) focusField('note-body')
+    }
+    if (!note) neLast = 0
+  })
+
+  function neSet(next, start, end) {
+    neNotes.edit(neNote().id, next)
+    const area = neArea.current
+    if (!area) return
+    area.value = next
+    area.setSelectionRange(start, end)
+    area.focus()
+  }
+  function neInput(event) { neNotes.edit(neNote().id, event.target.value) }
+  function neFormat(kind) {
+    const area = neArea.current
+    if (!area) return
+    const result = applyFormat(area.value, area.selectionStart, area.selectionEnd, kind)
+    neSet(result.body, result.start, result.end)
+  }
+  function neKey(event) {
+    const mod = event.metaKey || event.ctrlKey
+    if (mod && (event.key === 'b' || event.key === 'B')) { event.preventDefault(); neFormat('bold'); return }
+    if (mod && (event.key === 'i' || event.key === 'I')) { event.preventDefault(); neFormat('italic'); return }
+    if (event.key === 'Enter' && !mod && !event.shiftKey) {
+      const area = event.target
+      if (area.selectionStart !== area.selectionEnd) return
+      const next = continueList(area.value, area.selectionStart)
+      if (next) { event.preventDefault(); neSet(next.body, next.caret, next.caret) }
+    }
+  }
+  function neTick(event) {
+    const box = event.target.closest('button[data-line]')
+    if (!box) return
+    neNotes.edit(neNote().id, toggleCheckLine(neNote().body, Number(box.getAttribute('data-line'))))
+  }
+  function neMove(event) { neNotes.move(neNote().id, event.target.value ? Number(event.target.value) : null) }
+  function neAskDelete() {
+    const id = neNote().id
+    neWs.confirm('Delete this note?', 'It will be removed for good.', 'Delete note', () => neNotes.remove(id))
+  }
+</script>
+
+<section class="k-pane k-detail" aria-label="Note">
+  <EmptyState :if="!neNote()" icon="i-hugeicons-note-01" text="Select a note, or start a new one." />
+
+  <div :if="neNote()" class="k-editor">
+    <div class="k-toolbar" style="flex-wrap: nowrap">
+      <button type="button" class="k-icon-btn k-back k-back-detail" aria-label="Back to notes" @click="neNotes.close()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
+      <div class="k-seg" role="group" aria-label="Editor mode">
+        <button type="button" :aria-pressed="neMode() === 'write' ? 'true' : 'false'" @click="neMode.set('write')">Write</button>
+        <button type="button" :aria-pressed="neMode() === 'preview' ? 'true' : 'false'" @click="neMode.set('preview')">Preview</button>
+      </div>
+      <span style="width: 8px"></span>
+      <button type="button" class="k-icon-btn" :if="neMode() === 'write'" aria-label="Heading" title="Heading" @click="neFormat('heading')"><i class="k-ico i-hugeicons-heading-02" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :if="neMode() === 'write'" aria-label="Bold" title="Bold (Cmd+B)" @click="neFormat('bold')"><i class="k-ico i-hugeicons-text-bold" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :if="neMode() === 'write'" aria-label="Italic" title="Italic (Cmd+I)" @click="neFormat('italic')"><i class="k-ico i-hugeicons-text-italic" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :if="neMode() === 'write'" aria-label="Checklist" title="Checklist" @click="neFormat('check')"><i class="k-ico i-hugeicons-check-list" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :if="neMode() === 'write'" aria-label="Bulleted list" title="Bulleted list" @click="neFormat('list')"><i class="k-ico i-hugeicons-left-to-right-list-bullet" aria-hidden="true"></i></button>
+      <span style="flex: 1"></span>
+      <button type="button" class="k-icon-btn" :aria-pressed="neNote().pinned ? 'true' : 'false'" :aria-label="neNote().pinned ? 'Unpin note' : 'Pin note'" :title="neNote().pinned ? 'Unpin' : 'Pin'" @click="neNotes.pin(neNote().id)"><i class="k-ico" :class="neNote().pinned ? 'i-hugeicons-pin-off' : 'i-hugeicons-pin'" aria-hidden="true"></i></button>
+      <MoreMenu label="Note options">
+        <button type="button" role="menuitem" class="is-danger" @click="neAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete note</button>
+      </MoreMenu>
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; padding: 8px 24px 0">
+      <label class="k-sub" for="ne-folder">Folder</label>
+      <select id="ne-folder" class="k-select" style="width: auto; min-height: 32px; padding: 2px 8px" :value="neFolder()" @change="neMove($event)">
+        <option value="">None</option>
+        <option :for="folder in neWs.folders()" :key="folder.id" :value="String(folder.id)" :text="folder.title"></option>
+      </select>
+      <span style="flex: 1"></span>
+      <span class="k-sub" :if="neProgress().total" :text="neProgress().done + ' of ' + neProgress().total + ' done'"></span>
+      <span class="k-sub" style="min-width: 50px; text-align: right" aria-live="polite" :text="neStatus()"></span>
+    </div>
+
+    <label class="sr-only" for="ne-body">Note text</label>
+    <textarea id="ne-body" ref="neArea" data-focus="note-body" :if="neMode() === 'write'" :value="neNote().body" placeholder="Start writing. The first line becomes the title." @input="neInput($event)" @keydown="neKey($event)" style="margin-top: 8px"></textarea>
+    <div class="md" :if="neMode() === 'preview'" :html="neRendered()" @click="neTick($event)"></div>
+  </div>
+</section>

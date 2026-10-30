@@ -114,3 +114,47 @@ export function continueList(body: string, caret: number): { body: string, caret
   const inserted = `\n${marker}`
   return { body: body.slice(0, caret) + inserted + body.slice(caret), caret: caret + inserted.length }
 }
+
+export type Format = 'bold' | 'italic' | 'heading' | 'check' | 'list'
+export interface Edit { body: string, start: number, end: number }
+
+/** The start and end offsets of the line containing `at`. */
+function lineBounds(body: string, at: number): [number, number] {
+  const start = body.lastIndexOf('\n', at - 1) + 1
+  const next = body.indexOf('\n', at)
+  return [start, next < 0 ? body.length : next]
+}
+
+/** Apply a toolbar or keyboard format to the selection, the way Notes.app's format menu does. */
+export function applyFormat(body: string, start: number, end: number, kind: Format): Edit {
+  if (kind === 'bold' || kind === 'italic') {
+    const mark = kind === 'bold' ? '**' : '*'
+    const chosen = body.slice(start, end)
+    const wrapped = chosen.startsWith(mark) && chosen.endsWith(mark) && chosen.length >= mark.length * 2
+    if (wrapped) {
+      const inner = chosen.slice(mark.length, chosen.length - mark.length)
+      return { body: body.slice(0, start) + inner + body.slice(end), start, end: start + inner.length }
+    }
+    const text = chosen || (kind === 'bold' ? 'bold' : 'italic')
+    return { body: `${body.slice(0, start)}${mark}${text}${mark}${body.slice(end)}`, start: start + mark.length, end: start + mark.length + text.length }
+  }
+  const [from, to] = lineBounds(body, start)
+  const line = body.slice(from, to)
+  let next: string
+  if (kind === 'heading') {
+    const match = /^(#{1,3})\s+/.exec(line)
+    const level = match ? match[1]!.length : 0
+    const rest = match ? line.slice(match[0].length) : line
+    next = level >= 3 ? rest : `${'#'.repeat(level + 1)} ${rest}`
+  }
+  else if (kind === 'check') {
+    if (/^\s*[-*+]\s+\[[ xX]\]\s?/.test(line)) next = line.replace(/^(\s*)[-*+]\s+\[[ xX]\]\s?/, '$1')
+    else if (/^\s*[-*+]\s+/.test(line)) next = line.replace(/^(\s*)[-*+]\s+/, '$1- [ ] ')
+    else next = `- [ ] ${line}`
+  }
+  else {
+    next = /^\s*[-*+]\s+/.test(line) && !/^\s*[-*+]\s+\[[ xX]\]/.test(line) ? line.replace(/^(\s*)[-*+]\s+/, '$1') : `- ${line.replace(/^\s*[-*+]\s+(\[[ xX]\]\s?)?/, '')}`
+  }
+  const caret = Math.min(from + next.length, from + next.length)
+  return { body: body.slice(0, from) + next + body.slice(to), start: caret, end: caret }
+}
