@@ -1,0 +1,20 @@
+<script client>
+const title = useReactiveProp('title', '')
+const subtitle = useReactiveProp('subtitle', '')
+const meta = useReactiveProp('meta', '')
+const symbol = useReactiveProp('symbol', '')
+const selected = useReactiveProp('selected', false)
+const colors = useReactiveProp('colors', {})
+const rowId = useReactiveProp('rowId', '')
+const emit = defineEmits(['choose', 'menu'])
+</script>
+<Pressable class="flex-col gap-[2px] px-3 py-[7px] rounded-[8px]" :style="{backgroundColor: selected() ? colors().selection : 'transparent'}" :testID="rowId()" @click="emit('choose')" @contextmenu="emit('menu')">
+  <View class="flex-row gap-[5px] items-center">
+    <Icon :if="symbol()" :symbol="symbol()" class="shrink-0 h-[11px] w-[11px]" style="color: secondaryLabel" />
+    <Text class="flex-1 font-semibold text-[13px]" :numberOfLines="1" :text="title() || 'Untitled'" />
+  </View>
+  <View class="flex-row gap-2">
+    <Text :if="meta()" class="shrink-0 text-[11.5px]" style="color: label" :numberOfLines="1" :text="meta()" />
+    <Text class="flex-1 text-[11.5px]" style="color: secondaryLabel" :numberOfLines="1" :text="subtitle() || ' '" />
+  </View>
+</Pressable>

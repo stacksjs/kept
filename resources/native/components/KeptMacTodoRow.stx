@@ -1,0 +1,21 @@
+<script client>
+const row = useReactiveProp('item', {})
+const chips = useReactiveProp('chips', [])
+const selected = useReactiveProp('selected', false)
+const colors = useReactiveProp('colors', {})
+const emit = defineEmits(['choose', 'toggle', 'menu'])
+function done() { return !!(row().completed_at || row().canceled_at) }
+</script>
+<View class="flex-row gap-2 items-center pl-2 pr-3 h-[34px] rounded-[7px]" :style="{backgroundColor: selected() ? colors().selection : 'transparent'}" :testID="'row-' + row().id">
+  <Pressable class="items-center justify-center shrink-0 h-[24px] w-[24px]" :accessibilityLabel="done() ? 'Mark as not done' : 'Complete'" :testID="'check-' + row().id" @click="emit('toggle')">
+    <Icon :symbol="done() ? 'checkmark.circle.fill' : 'circle'" class="h-[17px] w-[17px]" :style="{color: done() ? colors().accent : 'secondaryLabel'}" />
+  </Pressable>
+  <Pressable class="flex-1 flex-row gap-2 items-center h-[34px] min-w-0" :testID="'todo-' + row().id" @click="emit('choose')" @contextmenu="emit('menu')">
+    <Text class="flex-1 min-w-[150px] text-[13px]" :numberOfLines="1" :style="{color: done() ? 'secondaryLabel' : 'label'}" :text="row().title || 'New To-Do'" />
+    <Icon :if="row().notes" symbol="doc.text" class="shrink-0 h-[12px] w-[12px]" style="color: secondaryLabel" />
+    <View :for="chip in chips()" :key="chip.tone + chip.text" class="flex-row gap-[3px] items-center shrink-0 px-[6px] h-[18px] rounded-[5px]" :style="{backgroundColor: chip.bg}">
+      <Icon :if="chip.symbol" :symbol="chip.symbol" class="h-[10px] w-[10px]" :style="{color: chip.fg}" />
+      <Text class="text-[11px]" :numberOfLines="1" :style="{color: chip.fg}" :text="chip.text" />
+    </View>
+  </Pressable>
+</View>

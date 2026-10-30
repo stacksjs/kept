@@ -1,0 +1,76 @@
+<script client>
+import { apiOrigin, keychainSession, nativeApi, nativeCraft, saveAccount, savedAccount } from '../functions/kept/native-kept'
+
+const session = keychainSession()
+const api = nativeApi(session)
+const account = state(savedAccount())
+const signedIn = state(!!session.token())
+const scheme = state(nativeCraft().appearance.colorScheme())
+const note = state('')
+const busy = state(false)
+const version = nativeCraft().app.version
+
+async function load() {
+  if (!session.token()) return
+  try {
+    const me = await api.me()
+    account.set(me)
+    saveAccount(me)
+  }
+  catch (error) { note.set(error?.status ? (error.message || 'Could not load your account.') : 'Offline. Showing the account saved on this Mac.') }
+}
+
+async function signOut() {
+  busy.set(true)
+  try { await api.signOut() }
+  catch { session.save(null) }
+  finally {
+    busy.set(false)
+    saveAccount(null)
+    account.set(null)
+    signedIn.set(false)
+    note.set('Signed out. Sign in again from the main window.')
+  }
+}
+
+onMount(async () => {
+  onDestroy(nativeCraft().session.onChange((token) => {
+    session.adopt(token)
+    signedIn.set(!!token)
+    if (token) load()
+    else account.set(null)
+  }))
+  onDestroy(nativeCraft().desktop.onCommand((id) => {
+    if (id === 'appearance') scheme.set(nativeCraft().appearance.colorScheme())
+  }))
+  await load()
+})
+</script>
+
+<View class="flex-1 flex-col gap-5 p-7" testID="settings">
+  <View class="flex-col gap-2">
+    <Text class="font-semibold text-[11px]" style="color: secondaryLabel" :text="'ACCOUNT'" />
+    <View :if="signedIn() && account()" class="flex-row gap-3 items-center">
+      <Icon symbol="person.crop.circle.fill" class="h-[34px] w-[34px]" style="color: accent" />
+      <View class="flex-1 flex-col">
+        <Text class="font-semibold text-[14px]" :text="account()?.name || 'Signed in'" testID="settings-name" />
+        <Text class="text-[12px]" style="color: secondaryLabel" :text="account()?.email || ''" testID="settings-email" />
+      </View>
+      <Button title="Sign Out" :disabled="busy()" testID="settings-sign-out" @click="signOut()" />
+    </View>
+    <Text :if="!signedIn() || !account()" class="text-[12.5px]" style="color: secondaryLabel" :text="'Not signed in. Use the main window to sign in.'" testID="settings-signed-out" />
+  </View>
+  <View class="flex-col gap-2 pt-4 border-t" style="border-color: separator">
+    <Text class="font-semibold text-[11px]" style="color: secondaryLabel" :text="'SERVER'" />
+    <Text class="text-[12.5px]" :text="apiOrigin() || 'Not set'" testID="settings-origin" />
+    <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Your sign-in is kept in the macOS Keychain. Lists you have opened stay readable when you are offline.'" />
+  </View>
+  <View class="flex-col gap-2 pt-4 border-t" style="border-color: separator">
+    <Text class="font-semibold text-[11px]" style="color: secondaryLabel" :text="'APPEARANCE'" />
+    <Text class="text-[12.5px]" :text="'Kept follows your Mac, now ' + (scheme() === 'dark' ? 'Dark' : 'Light') + '.'" testID="settings-appearance" />
+    <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Change it in System Settings, Appearance.'" />
+  </View>
+  <View class="flex-1" />
+  <Text :if="note()" class="text-[11.5px]" style="color: secondaryLabel" :text="note()" testID="settings-note" />
+  <Text class="text-[10.5px]" style="color: secondaryLabel" :text="version ? 'Kept ' + version : 'Kept for Mac'" />
+</View>
