@@ -1,0 +1,17 @@
+# Auto-generated from config/deps.ts and .env sniffing.
+# This file is regenerated on each `buddy setup` run.
+#
+# To learn more, please visit:
+# https://stacksjs.com/docs/dependency-management
+
+dependencies:
+  bun: 1.4.4
+  curl: ^8.22.0
+  git: ^2.47.0
+  github.com/mail-os/mail: ^0.3.2
+  mysql.com: ^9.2
+
+services:
+  enabled: true
+  autoStart:
+    - mysql
