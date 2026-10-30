@@ -1,0 +1,114 @@
+@extends('kept')
+@section('content')
+<script server>
+useHead({ title: 'Kept' })
+</script>
+<script client>
+  import { commandFor } from '../functions/kept/shortcuts'
+  import { focusField, isWide, scrollCursorIntoView } from '../functions/kept/client'
+
+  const session = useStore('keptSession')
+  const ws = useStore('workspace')
+  const tasks = useStore('tasks')
+  const notes = useStore('notes')
+  const prompts = useStore('prompts')
+  const ready = state(false)
+  const panel = ws.panel
+  const section = ws.section
+  const isTodos = derived(() => section() === 'todos' || section() === 'home')
+
+  onMount(async () => {
+    if (!(await session.require())) return
+    await Promise.all([ws.init(), tasks.load(), notes.load()])
+    // A wide window has no "home" pane: it opens on the Inbox.
+    if (ws.route().section === 'home' && isWide()) ws.go({ section: 'todos', view: { kind: 'list', name: 'inbox' }, item: null })
+    ready.set(true)
+    useInterval(() => tasks.refreshDay(), 60000)
+  })
+
+  // The open library decides which prompts are loaded.
+  let lastLibrary = undefined
+  effect(() => {
+    const r = ws.route()
+    if (r.section !== 'prompts') { lastLibrary = undefined; return }
+    if (r.library !== lastLibrary) { lastLibrary = r.library; prompts.load(r.library) }
+    else prompts.syncDraft()
+  })
+
+  // Moving between lists clears the keyboard cursor so it never points at a row that is not on screen.
+  effect(() => { ws.route(); if (!tasks.flat().some(todo => todo.id === tasks.cursor())) tasks.cursor.set(null) })
+
+  function blocked() {
+    return !!ws.confirmation() || prompts.useOpen() || prompts.shareOpen() || prompts.versionsOpen()
+  }
+
+  function closeTop() {
+    if (ws.confirmation()) { ws.answer(false); return true }
+    if (prompts.useOpen()) { prompts.useOpen.set(false); return true }
+    if (prompts.shareOpen()) { prompts.shareOpen.set(false); return true }
+    if (prompts.versionsOpen()) { prompts.versionsOpen.set(false); return true }
+    return false
+  }
+
+  function onKey(event) {
+    const target = event.target
+    const tag = target && target.tagName ? target.tagName.toLowerCase() : ''
+    const command = commandFor({
+      key: event.key, metaKey: event.metaKey, ctrlKey: event.ctrlKey, altKey: event.altKey, shiftKey: event.shiftKey,
+      tag, editable: !!(target && target.isContentEditable), actionable: tag === 'button' || tag === 'a' || tag === 'summary',
+      modal: blocked(),
+    })
+    if (!command) return
+    const sec = ws.route().section
+    if (command === 'close') {
+      if (closeTop()) { event.preventDefault(); return }
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') { target.blur(); return }
+      if (ws.route().item) {
+        if (sec === 'notes') notes.close()
+        else if (sec === 'prompts') prompts.close()
+        else ws.openItem(null)
+      }
+      return
+    }
+    if (blocked() && command !== 'save') return
+    if (command === 'save') { if (sec === 'prompts') { event.preventDefault(); prompts.save() } return }
+    if (command === 'search') { event.preventDefault(); focusField(sec === 'todos' ? 'quick-add' : 'search'); return }
+    if (command === 'new') {
+      event.preventDefault()
+      if (sec === 'notes') notes.create()
+      else if (sec === 'prompts') prompts.create()
+      else focusField('quick-add')
+      return
+    }
+    if (sec !== 'todos') return
+    const flat = tasks.flat()
+    if (command === 'next' || command === 'prev') { event.preventDefault(); tasks.step(flat, command === 'next' ? 1 : -1); scrollCursorIntoView() }
+    else if (command === 'open') {
+      const id = tasks.cursor()
+      if (id !== null) { event.preventDefault(); ws.openItem(id); focusField('todo-title') }
+    }
+    else if (command === 'complete') {
+      const id = ws.route().item || tasks.cursor()
+      if (id !== null) { event.preventDefault(); const todo = tasks.find(id); if (todo && !todo.completed_at) tasks.complete(id) }
+    }
+    else if (command === 'moveUp' || command === 'moveDown') {
+      const id = ws.route().item || tasks.cursor()
+      const group = tasks.groups().find(g => g.reorder && g.items.some(todo => todo.id === id))
+      if (id !== null && group) { event.preventDefault(); tasks.nudge(group.items, id, command === 'moveUp' ? -1 : 1) }
+    }
+  }
+  useEventListener('keydown', onKey)
+  useEventListener('beforeunload', () => { tasks.flushAll(); notes.flush() })
+</script>
+
+<div class="k-shell" :data-panel="panel()" :data-ready="ready() ? 'true' : 'false'">
+  <AppSidebar />
+  <TodoPane :if="isTodos()" />
+  <TodoDetail :if="isTodos()" />
+  <NoteList :if="section() === 'notes'" />
+  <NoteEditor :if="section() === 'notes'" />
+  <PromptList :if="section() === 'prompts'" />
+  <PromptEditor :if="section() === 'prompts'" />
+</div>
+<AppOverlays />
+@endsection

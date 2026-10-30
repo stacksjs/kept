@@ -142,3 +142,18 @@ export function parseTagInput(text: string, existing: string[] = []): string[] {
 export function allTags(todos: Todo[]): string[] {
   return [...new Set(todos.flatMap(todo => todo.tags))].sort((a, b) => a.localeCompare(b))
 }
+
+export interface LogGroup { key: string, label: string, items: Todo[] }
+
+/** The Logbook groups finished to-dos by the (local) day they were finished. `completed` is an ISO timestamp from the server. */
+export function groupLogbook(items: Todo[], today: string, dayOf: (iso: string) => string, label: (day: string, today: string) => string): LogGroup[] {
+  const groups = new Map<string, LogGroup>()
+  for (const todo of items) {
+    const at = todo.completed_at ?? todo.canceled_at
+    if (!at) continue
+    const day = dayOf(at)
+    if (!groups.has(day)) groups.set(day, { key: day, label: label(day, today), items: [] })
+    groups.get(day)!.items.push(todo)
+  }
+  return [...groups.values()].sort((a, b) => b.key.localeCompare(a.key))
+}

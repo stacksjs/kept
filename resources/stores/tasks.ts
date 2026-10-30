@@ -1,7 +1,11 @@
 import { defineStore, derived, state, useStore } from '@stacksjs/stx'
 import { api, deviceDay } from '../functions/kept/client'
-import { allTags, byOrder, counts, moveId, newTodoFor, normalizeItem, normalizeTodo, orderChanges, progress, serializeChanges, splitToday, viewItems } from '../functions/kept/todos'
+import { dayLabel, groupByDay, localDay } from '../functions/kept/format'
+import { allTags, byOrder, counts, groupLogbook, moveId, newTodoFor, normalizeItem, normalizeTodo, orderChanges, progress, serializeChanges, splitToday, viewItems } from '../functions/kept/todos'
 import type { ChecklistItem, Todo } from '../functions/kept/types'
+
+/** A titled run of rows in a pane: Today's two halves, one day of Upcoming, one day of the Logbook. */
+export interface Group { key: string, label: string, sub: string, icon: string, bucket: '' | 'today' | 'evening', reorder: boolean, items: Todo[] }
 
 /**
  * Every to-do the person has, held once. Smart lists, projects, areas and the
@@ -28,6 +32,26 @@ defineStore('tasks', () => {
   const totals = derived(() => counts(open(), today()))
   const tags = derived(() => allTags([...open(), ...logbook()]))
   const canAdd = derived(() => newTodoFor(workspace().view(), today()) !== null)
+  const dragging = state<number | null>(null)
+
+  const groups = derived<Group[]>(() => {
+    const view = workspace().view()
+    const day = today()
+    if (view.kind === 'list' && view.name === 'logbook')
+      return groupLogbook(logbook(), day, localDay, dayLabel).map(group => ({ key: group.key, label: group.label, sub: '', icon: '', bucket: '', reorder: false, items: group.items }))
+    if (view.kind === 'list' && view.name === 'upcoming')
+      return groupByDay(items(), day).map(group => ({ key: group.key, label: group.label, sub: group.sub, icon: '', bucket: '', reorder: false, items: group.items }))
+    if (view.kind === 'list' && view.name === 'today') {
+      const halves = split()
+      const out: Group[] = [{ key: 'today', label: '', sub: '', icon: '', bucket: 'today', reorder: true, items: halves.main }]
+      if (halves.evening.length || dragging() !== null) out.push({ key: 'evening', label: 'This Evening', sub: '', icon: 'i-hugeicons-moon-02', bucket: 'evening', reorder: true, items: halves.evening })
+      return out
+    }
+    return [{ key: 'all', label: '', sub: '', icon: '', bucket: '', reorder: true, items: items() }]
+  })
+  /** Every row on screen in order, for the keyboard. */
+  const flat = derived<Todo[]>(() => groups().flatMap(group => group.items))
+  const isEmpty = derived(() => flat().length === 0)
 
   /** The open to-do, whichever list it is in. */
   const selected = derived<Todo | null>(() => {
@@ -205,6 +229,15 @@ defineStore('tasks', () => {
     for (const change of orderChanges(group, order)) update(change.id, { sort_order: change.sort_order }, 250)
   }
 
+  /** Drop `dragged` beside `target`; dropping across Today and This Evening also changes which half it belongs to. */
+  function dropOn(group: Todo[], bucket: '' | 'today' | 'evening', dragged: number, target: number, after: boolean): void {
+    const todo = find(dragged)
+    if (!todo) return
+    if (bucket === 'evening' && todo.when !== 'evening') update(dragged, { when: 'evening' })
+    else if (bucket === 'today' && todo.when === 'evening') update(dragged, { when: 'today' })
+    reorder(group.some(item => item.id === dragged) ? group : [...group, todo], dragged, target, after)
+  }
+
   // Checklist
 
   const withChecklist = (todoId: number, change: (list: ChecklistItem[]) => ChecklistItem[]): void => {
@@ -260,7 +293,7 @@ defineStore('tasks', () => {
   }
 
   return {
-    open, logbook, loaded, today, fading, cursor, quickTitle, items, logItems, split, totals, tags, canAdd, selected,
+    open, logbook, loaded, today, fading, cursor, quickTitle, items, logItems, split, totals, tags, canAdd, selected, dragging, groups, flat, isEmpty, dropOn,
     openCount, doneCount, ring, areaCount, load, refreshDay, find, create, quickAdd, update, flushAll, remove, complete, reopen, toggle,
     reorder, nudge, addCheck, setCheck, removeCheck, moveCheck, step, byOrder,
   }

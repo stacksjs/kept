@@ -105,3 +105,10 @@ export function initials(name: string): string {
   const words = name.trim().split(/\s+/).filter(Boolean)
   return ((words[0]?.[0] ?? '') + (words.length > 1 ? words[words.length - 1]![0]! : '')).toUpperCase() || '?'
 }
+
+/** The local calendar day (`YYYY-MM-DD`) of an ISO timestamp. */
+export function localDay(iso: string): string {
+  const when = new Date(iso)
+  if (Number.isNaN(when.getTime())) return ''
+  return `${when.getFullYear()}-${String(when.getMonth() + 1).padStart(2, '0')}-${String(when.getDate()).padStart(2, '0')}`
+}

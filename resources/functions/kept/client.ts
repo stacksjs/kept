@@ -53,3 +53,43 @@ export const deviceDay = (): string => today()
 export function queryParam(name: string): string | null {
   return new URLSearchParams(globalThis.location?.search ?? '').get(name)
 }
+
+/** Focus the element marked `data-focus="name"`, once the markup for it exists. */
+export function focusField(name: string): void {
+  const find = (): HTMLElement | null => globalThis.document?.querySelector<HTMLElement>(`[data-focus="${name}"]`) ?? null
+  const el = find()
+  if (el) { el.focus(); return }
+  setTimeout(() => find()?.focus(), 60)
+}
+
+/** Keep the keyboard cursor row in view. */
+export function scrollCursorIntoView(): void {
+  globalThis.document?.querySelector('[data-cursor="true"]')?.scrollIntoView({ block: 'nearest' })
+}
+
+/** True on a window wide enough for the sidebar and list side by side. */
+export const isWide = (): boolean => !!globalThis.matchMedia?.('(min-width: 720px)').matches
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+/** The element that has focus now, so a sheet can give focus back to it when it closes. */
+export const activeElement = (): HTMLElement | null => (globalThis.document?.activeElement as HTMLElement | null) ?? null
+
+/** Move focus into a sheet: the element asking for it (`data-autofocus`), else the first control. */
+export function focusFirst(panel: HTMLElement | null): void {
+  if (!panel) return
+  const target = panel.querySelector<HTMLElement>('[data-autofocus]') ?? panel.querySelector<HTMLElement>(FOCUSABLE)
+  target?.focus()
+}
+
+/** Keep Tab inside a sheet: from the last control it wraps to the first, and back. */
+export function trapTab(panel: HTMLElement | null, event: KeyboardEvent): void {
+  if (!panel || event.key !== 'Tab') return
+  const nodes = [...panel.querySelectorAll<HTMLElement>(FOCUSABLE)].filter(node => node.offsetParent !== null)
+  if (!nodes.length) return
+  const first = nodes[0]!
+  const last = nodes[nodes.length - 1]!
+  const active = activeElement()
+  if (event.shiftKey && active === first) { event.preventDefault(); last.focus() }
+  else if (!event.shiftKey && active === last) { event.preventDefault(); first.focus() }
+}

@@ -1,0 +1,17 @@
+<script>
+interface MoreMenuProps { label?: string }
+const { label = 'More' } = defineProps<MoreMenuProps>()
+</script>
+<script client>
+  const mmLabel = useReactiveProp('label', 'More')
+  const mmOpen = state(false)
+  const mmBox = useRef('mmBox')
+  useClickOutside(() => mmBox.current, () => mmOpen.set(false))
+  function mmKey(event) { if (event.key === 'Escape' && mmOpen()) { event.stopPropagation(); mmOpen.set(false) } }
+</script>
+<div class="k-menu" ref="mmBox" @keydown="mmKey($event)">
+  <button type="button" class="k-icon-btn" :aria-label="mmLabel()" aria-haspopup="menu" :aria-expanded="mmOpen() ? 'true' : 'false'" @click="mmOpen.update(v => !v)">
+    <i class="k-ico i-hugeicons-more-horizontal" aria-hidden="true"></i>
+  </button>
+  <div class="k-menu-panel" role="menu" :if="mmOpen()" @click="mmOpen.set(false)"><slot /></div>
+</div>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { allTags, counts, moveId, newTodoFor, normalizeTodo, orderChanges, parseTagInput, progress, serializeChanges, splitToday, viewItems, whenLabel, whenPatch } from '../../resources/functions/kept/todos'
+import { allTags, groupLogbook, counts, moveId, newTodoFor, normalizeTodo, orderChanges, parseTagInput, progress, serializeChanges, splitToday, viewItems, whenLabel, whenPatch } from '../../resources/functions/kept/todos'
 import type { Todo } from '../../resources/functions/kept/types'
 
 const today = '2026-10-30'
@@ -98,5 +98,15 @@ describe('todos', () => {
   it('parses typed tags without duplicates', () => {
     expect(parseTagInput('home, #phone,  , Home', ['work'])).toEqual(['work', 'home', 'phone'])
     expect(allTags([todo({ tags: ['b', 'a'] }), todo({ tags: ['a'] })])).toEqual(['a', 'b'])
+  })
+
+  it('groups the logbook by the day things were finished, newest first', () => {
+    const a = todo({ completed_at: '2026-10-30T09:00:00Z' })
+    const b = todo({ completed_at: '2026-10-30T18:00:00Z' })
+    const c = todo({ completed_at: '2026-10-28T18:00:00Z' })
+    const groups = groupLogbook([a, b, c], today, iso => iso.slice(0, 10), day => `on ${day}`)
+    expect(groups.map(g => g.key)).toEqual(['2026-10-30', '2026-10-28'])
+    expect(groups[0]!.items.map(t => t.id)).toEqual([a.id, b.id])
+    expect(groups[0]!.label).toBe('on 2026-10-30')
   })
 })

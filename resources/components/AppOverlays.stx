@@ -1,0 +1,19 @@
+<script client>
+  const aoWs = useStore('workspace')
+  const aoOpen = derived(() => !!aoWs.confirmation())
+  const aoTitle = derived(() => (aoWs.confirmation() ? aoWs.confirmation().title : ''))
+  const aoMessage = derived(() => (aoWs.confirmation() ? aoWs.confirmation().message : ''))
+  const aoLabel = derived(() => (aoWs.confirmation() ? aoWs.confirmation().label : ''))
+</script>
+
+<Sheet :open="aoOpen()" :title="aoTitle()" @close="aoWs.answer(false)">
+  <p style="margin: 0 0 18px; color: var(--text-2)" :text="aoMessage()"></p>
+  <div style="display: flex; gap: 8px; justify-content: flex-end">
+    <button type="button" class="k-btn" data-autofocus @click="aoWs.answer(false)">Cancel</button>
+    <button type="button" class="k-btn k-btn-danger" @click="aoWs.answer(true)" :text="aoLabel()"></button>
+  </div>
+</Sheet>
+
+<div class="k-toasts" role="status" aria-live="polite">
+  <div class="k-toast" :for="toast in aoWs.toasts()" :key="toast.id" :data-tone="toast.tone" :text="toast.text"></div>
+</div>

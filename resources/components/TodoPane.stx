@@ -1,0 +1,103 @@
+<script client>
+  const tpWs = useStore('workspace')
+  const tpTasks = useStore('tasks')
+  const tpQuick = state('')
+  const tpName = state('')
+  const tpEditing = state(false)
+
+  const TITLES = { inbox: 'Inbox', today: 'Today', upcoming: 'Upcoming', anytime: 'Anytime', someday: 'Someday', logbook: 'Logbook' }
+  const EMPTY = {
+    inbox: 'Your Inbox is empty. Capture anything that comes to mind.',
+    today: 'Nothing planned for today.',
+    upcoming: 'Nothing is scheduled yet.',
+    anytime: 'Nothing waiting. Add something for whenever you have time.',
+    someday: 'Park ideas here until you are ready for them.',
+    logbook: 'Finished to-dos will appear here.',
+    project: 'This project has no to-dos yet.',
+    area: 'No loose to-dos in this area.',
+  }
+  const tpView = tpWs.view
+  const tpProject = derived(() => (tpView().kind === 'project' ? tpWs.projects().find(p => p.id === tpView().id) || null : null))
+  const tpArea = derived(() => (tpView().kind === 'area' ? tpWs.areas().find(a => a.id === tpView().id) || null : null))
+  const tpTitle = derived(() => {
+    const v = tpView()
+    if (v.kind === 'list') return TITLES[v.name]
+    return v.kind === 'project' ? (tpProject() ? tpProject().title : '') : (tpArea() ? tpArea().title : '')
+  })
+  const tpEmptyText = derived(() => EMPTY[tpView().kind === 'list' ? tpView().name : tpView().kind])
+  const tpIsToday = derived(() => tpView().kind === 'list' && tpView().name === 'today')
+  const tpEditable = derived(() => tpView().kind !== 'list')
+  const tpDone = derived(() => (tpProject() ? tpTasks.doneCount(tpProject().id) : 0))
+  const tpOpenCount = derived(() => (tpProject() ? tpTasks.openCount(tpProject().id) : 0))
+  const tpSubtitle = derived(() => {
+    if (tpProject()) return tpDone() + ' of ' + (tpDone() + tpOpenCount()) + ' done'
+    if (tpIsToday()) return tpTasks.totals().overdue > 0 ? tpTasks.totals().overdue + ' overdue' : ''
+    return ''
+  })
+  const tpAreaProjects = derived(() => (tpArea() ? tpWs.projects().filter(p => p.area_id === tpArea().id) : []))
+  const tpNeedsNames = derived(() => tpView().kind !== 'project')
+
+  async function tpAdd(event) {
+    event.preventDefault()
+    const title = tpQuick()
+    tpQuick.set('')
+    await tpTasks.create(title)
+  }
+  function tpEdit() { tpName.set(tpTitle()); tpEditing.set(true) }
+  async function tpCommitName() {
+    if (!tpEditing()) return
+    tpEditing.set(false)
+    const name = tpName().trim()
+    if (!name || name === tpTitle()) return
+    if (tpProject()) await tpWs.renameProject(tpProject().id, name)
+    else if (tpArea()) await tpWs.renameArea(tpArea().id, name)
+  }
+  function tpNameKey(event) {
+    if (event.key === 'Enter') { event.preventDefault(); tpCommitName() }
+    else if (event.key === 'Escape') { event.stopPropagation(); tpEditing.set(false) }
+  }
+  function tpAskDelete() {
+    if (tpProject()) { const id = tpProject().id; tpWs.confirm('Delete this project?', 'Its to-dos stay in your lists. The project itself is removed.', 'Delete project', () => tpWs.removeProject(id)) }
+    else if (tpArea()) { const id = tpArea().id; tpWs.confirm('Delete this area?', 'Its projects and to-dos stay in your lists. The area itself is removed.', 'Delete area', () => tpWs.removeArea(id)) }
+  }
+</script>
+
+<section class="k-pane k-main" aria-label="To-dos">
+  <header class="k-head">
+    <button type="button" class="k-icon-btn k-back k-back-main" aria-label="Back to lists" @click="tpWs.back()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
+    <ProgressRing :if="tpProject()" :value="tpTasks.ring(tpProject() ? tpProject().id : 0)" :size="26" />
+    <i class="k-ico k-star i-hugeicons-star" :if="tpIsToday()" style="width: 26px; height: 26px" aria-hidden="true"></i>
+    <div style="flex: 1; min-width: 0">
+      <h1 class="k-title" :if="!tpEditing()" :text="tpTitle()" :tabindex="tpEditable() ? 0 : null" @click="tpEditable() && tpEdit()" @keydown="tpEditable() && $event.key === 'Enter' && tpEdit()" :aria-label="tpEditable() ? tpTitle() + ', press Enter to rename' : null" :title="tpEditable() ? 'Rename' : null"></h1>
+      <input class="k-title-input" :if="tpEditing()" x-model="tpName" aria-label="Name" data-focus="rename" @blur="tpCommitName()" @keydown="tpNameKey($event)">
+      <p class="k-sub" :if="tpSubtitle()" style="margin: 2px 0 0" :text="tpSubtitle()"></p>
+    </div>
+    <MoreMenu :if="tpEditable()" label="Options">
+      <button type="button" role="menuitem" @click="tpEdit()"><i class="k-ico i-hugeicons-pencil-edit-02" aria-hidden="true"></i>Rename</button>
+      <button type="button" role="menuitem" class="is-danger" @click="tpAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete</button>
+    </MoreMenu>
+  </header>
+
+  <div class="k-scroll" id="tp-scroll">
+    <form class="k-quick" :if="tpTasks.canAdd()" @submit="tpAdd($event)">
+      <i class="k-ico i-hugeicons-plus-sign" style="color: var(--text-3)" aria-hidden="true"></i>
+      <label class="sr-only" for="tp-quick">New to-do</label>
+      <input id="tp-quick" type="text" data-focus="quick-add" x-model="tpQuick" placeholder="New to-do" autocomplete="off" enterkeyhint="done">
+    </form>
+
+    <TodoGroup :for="group in tpTasks.groups()" :key="group.key" :items="group.items" :label="group.label" :sub="group.sub" :icon="group.icon" :bucket="group.bucket" :reorder="group.reorder" :projectNames="tpNeedsNames()" />
+
+    <div :if="tpAreaProjects().length">
+      <h2 class="k-section">Projects</h2>
+      <div class="k-nav">
+        <button type="button" class="k-nav-item" :for="project in tpAreaProjects()" :key="project.id" @click="tpWs.open({ section: 'todos', view: { kind: 'project', id: project.id }, item: null })">
+          <ProgressRing :value="tpTasks.ring(project.id)" /><span :text="project.title"></span>
+          <span class="k-count" :text="tpTasks.openCount(project.id)"></span>
+        </button>
+      </div>
+    </div>
+
+    <EmptyState :if="tpTasks.isEmpty() && tpTasks.loaded() && !tpAreaProjects().length" icon="i-hugeicons-checkmark-circle-02" :text="tpEmptyText()" />
+    <div class="k-gap"></div>
+  </div>
+</section>

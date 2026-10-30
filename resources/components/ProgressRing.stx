@@ -1,0 +1,14 @@
+<script>
+interface ProgressRingProps { value?: number, size?: number }
+const { value = 0, size = 18 } = defineProps<ProgressRingProps>()
+</script>
+<script client>
+  const prValue = useReactiveProp('value', 0)
+  const prSize = useReactiveProp('size', 18)
+  // r = 7 on a 18 unit box: circumference 43.98
+  const prOffset = derived(() => 43.98 * (1 - Math.max(0, Math.min(1, Number(prValue()) || 0))))
+</script>
+<svg class="k-ring" viewBox="0 0 18 18" :width="prSize()" :height="prSize()" aria-hidden="true">
+  <circle class="k-ring-track" cx="9" cy="9" r="7"></circle>
+  <circle class="k-ring-bar" cx="9" cy="9" r="7" stroke-dasharray="43.98" :stroke-dashoffset="prOffset()"></circle>
+</svg>

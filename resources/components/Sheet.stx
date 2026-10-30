@@ -1,0 +1,39 @@
+<script>
+interface SheetProps { open?: boolean, title?: string, drawer?: boolean }
+const { open = false, title = '', drawer = false } = defineProps<SheetProps>()
+</script>
+<script client>
+  import { activeElement, focusFirst, trapTab } from '../functions/kept/client'
+
+  const shOpen = useReactiveProp('open', false)
+  const shTitle = useReactiveProp('title', '')
+  const shDrawer = useReactiveProp('drawer', false)
+  const shEmit = defineEmits()
+  const shPanel = useRef('shPanel')
+  const shIsOpen = derived(() => shOpen() === true || shOpen() === 'true')
+  const shIsDrawer = derived(() => shDrawer() === true || shDrawer() === 'true')
+  let shReturn = null
+
+  effect(() => {
+    if (shIsOpen()) {
+      shReturn = activeElement()
+      void nextTick(() => focusFirst(shPanel.current))
+    }
+    else if (shReturn) {
+      const back = shReturn
+      shReturn = null
+      back.focus()
+    }
+  })
+  function shKey(event) { trapTab(shPanel.current, event) }
+</script>
+
+<div class="k-scrim" :class="shIsDrawer() ? 'k-drawer' : ''" :if="shIsOpen()" @click="shEmit('close')">
+  <div class="k-sheet" ref="shPanel" role="dialog" aria-modal="true" :aria-label="shTitle()" @click="$event.stopPropagation()" @keydown="shKey($event)">
+    <div class="k-sheet-head">
+      <h2 :text="shTitle()"></h2>
+      <button type="button" class="k-icon-btn" aria-label="Close" @click="shEmit('close')"><i class="k-ico i-hugeicons-cancel-01" aria-hidden="true"></i></button>
+    </div>
+    <slot />
+  </div>
+</div>
