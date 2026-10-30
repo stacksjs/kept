@@ -207,3 +207,6 @@ docs/erd.md
 # The framework defaults: a link to node_modules/@stacksjs/defaults, made on
 # boot. `buddy publish:defaults` replaces it with a copy you commit instead.
 /storage/framework/defaults
+
+# Reference captures of another app, for local comparison only
+docs/reference/
