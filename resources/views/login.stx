@@ -1,0 +1,7 @@
+@extends('kept')
+@section('content')
+<script server>
+useHead({ title: 'Sign in to Kept' })
+</script>
+<AuthForm mode="signin" />
+@endsection

@@ -1,0 +1,7 @@
+@extends('kept')
+@section('content')
+<script server>
+useHead({ title: 'Create a Kept account' })
+</script>
+<AuthForm mode="signup" />
+@endsection

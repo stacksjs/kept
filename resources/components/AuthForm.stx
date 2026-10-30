@@ -1,0 +1,59 @@
+<script>
+interface AuthFormProps { mode?: 'signin' | 'signup' }
+const { mode = 'signin' } = defineProps<AuthFormProps>()
+</script>
+<script client>
+  import { queryParam } from '../functions/kept/client'
+
+  const afMode = useReactiveProp('mode', 'signin')
+  const afSession = useStore('keptSession')
+  const afName = state('')
+  const afEmail = state('')
+  const afPassword = state('')
+  const afNext = queryParam('next')
+  const afSignUp = derived(() => afMode() === 'signup')
+  const afError = afSession.error
+  const afBusy = afSession.busy
+  const afOther = derived(() => (afMode() === 'signup' ? '/login' : '/register') + (afNext ? '?next=' + encodeURIComponent(afNext) : ''))
+
+  afSession.redirectIfSignedIn(afNext)
+
+  function afSubmit(event) {
+    event.preventDefault()
+    if (afSignUp()) afSession.signUp(afName(), afEmail(), afPassword())
+    else afSession.signIn(afEmail(), afPassword(), afNext)
+  }
+</script>
+
+<main class="k-auth">
+  <div class="k-auth-card">
+    <span class="k-mark" aria-hidden="true"><i class="k-ico k-ico-lg i-hugeicons-checkmark-circle-02"></i></span>
+    <h1 :text="afSignUp() ? 'Create your account' : 'Welcome back'"></h1>
+    <p class="k-sub" style="margin: 0 0 22px; font-size: 15px" :text="afSignUp() ? 'Tasks, notes and prompts in one calm place.' : 'Sign in to pick up where you left off.'"></p>
+
+    <form @submit="afSubmit($event)" novalidate>
+      <div class="k-field" :if="afSignUp()">
+        <label class="k-label" for="af-name">Name</label>
+        <input id="af-name" class="k-input" type="text" autocomplete="name" x-model="afName">
+      </div>
+      <div class="k-field">
+        <label class="k-label" for="af-email">Email</label>
+        <input id="af-email" class="k-input" type="email" autocomplete="email" inputmode="email" x-model="afEmail">
+      </div>
+      <div class="k-field">
+        <label class="k-label" for="af-password">Password</label>
+        <input id="af-password" class="k-input" type="password" :autocomplete="afSignUp() ? 'new-password' : 'current-password'" x-model="afPassword" :aria-describedby="afError() ? 'af-error' : null">
+        <p class="k-sub" :if="afSignUp()" style="margin: 6px 0 0">At least 8 characters.</p>
+      </div>
+      <p id="af-error" class="k-err" role="alert" :if="afError()" :text="afError()"></p>
+      <button type="submit" class="k-btn k-btn-primary" style="width: 100%; margin-top: 16px; min-height: 44px" :disabled="afBusy()">
+        <span :text="afBusy() ? 'One moment' : (afSignUp() ? 'Create account' : 'Sign in')"></span>
+      </button>
+    </form>
+
+    <p class="k-sub" style="margin-top: 20px; text-align: center; font-size: 14px">
+      <span :text="afSignUp() ? 'Already have an account?' : 'New to Kept?'"></span>
+      <a :href="afOther()" style="color: var(--accent-text); font-weight: 600" :text="afSignUp() ? 'Sign in' : 'Create an account'"></a>
+    </p>
+  </div>
+</main>

@@ -1,6 +1,6 @@
 import { addDays } from '../../../app/Support/dates'
 import { inList, listCounts, type ListedTodo, type SmartList } from '../../../app/Support/lists'
-import type { Todo, When } from './types'
+import type { ChecklistItem, Todo, When } from './types'
 
 /** Which to-dos a pane shows: a smart list, or everything in a project or an area. */
 export type View
@@ -23,8 +23,13 @@ export function normalizeTodo(raw: Record<string, unknown>): Todo {
     ...(raw as unknown as Todo),
     notes: typeof raw.notes === 'string' ? raw.notes : '',
     tags,
-    checklist: Array.isArray(raw.checklist) ? (raw.checklist as Todo['checklist']) : [],
+    checklist: Array.isArray(raw.checklist) ? (raw.checklist as Array<Record<string, unknown>>).map(normalizeItem).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id) : [],
   }
+}
+
+/** A checklist item as the server stores it (`done` is 0 or 1). */
+export function normalizeItem(raw: Record<string, unknown>): ChecklistItem {
+  return { ...(raw as unknown as ChecklistItem), done: Boolean(raw.done), title: String(raw.title ?? ''), sort_order: Number(raw.sort_order ?? 0) }
 }
 
 /** The generated routes want `tags` as a JSON string, not an array. */
