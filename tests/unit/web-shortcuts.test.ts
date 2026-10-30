@@ -47,4 +47,11 @@ describe('shortcuts', () => {
     expect(commandFor({ key: 'j', modal: true })).toBeNull()
     expect(commandFor({ key: 'Escape', modal: true })).toBe('close')
   })
+
+  it('opens Quick Entry from anywhere', () => {
+    expect(commandFor({ key: ' ', ctrlKey: true })).toBe('quickEntry')
+    expect(commandFor({ key: ' ', ctrlKey: true, tag: 'textarea' })).toBe('quickEntry')
+    expect(commandFor({ key: 'N', metaKey: true, shiftKey: true })).toBe('quickEntry')
+    expect(commandFor({ key: 'n', metaKey: true })).toBeNull()
+  })
 })

@@ -79,6 +79,36 @@ export function groupByDay<T extends { start_date: string | null }>(items: T[], 
   return [...groups.values()].sort((a, b) => order(a.key).localeCompare(order(b.key)))
 }
 
+export interface DayBlock<T> { key: string, label: string, /** The day of the month, drawn large; empty for a month block. */ number: string, items: T[] }
+
+/**
+ * Upcoming shows the next week day by day, empty days included (Things keeps
+ * every day of the week as a block), and everything after by month.
+ */
+export function groupUpcoming<T extends { start_date: string | null }>(items: T[], today: string): Array<DayBlock<T>> {
+  const groups = new Map<string, DayBlock<T>>()
+  const horizon = addDays(today, 7)
+  for (let step = 1; step < 7; step++) {
+    const day = addDays(today, step)
+    groups.set(day, { key: day, label: dayLabel(day, today), number: String(parts(day).d), items: [] })
+  }
+  for (const item of items) {
+    const day = item.start_date
+    if (!day || day <= today) continue
+    const key = day < horizon ? day : day.slice(0, 7)
+    let group = groups.get(key)
+    if (!group) {
+      const { y, m } = parts(day)
+      group = { key, label: `${MONTHS_LONG[m - 1]}${y === parts(today).y ? '' : ` ${y}`}`, number: '', items: [] }
+      groups.set(key, group)
+    }
+    group.items.push(item)
+  }
+  // A month sorts after every day of the week that precedes it ('2026-11' alone would sort before '2026-11-03').
+  const order = (key: string): string => (key.length === 7 ? `${key}-99` : key)
+  return [...groups.values()].sort((a, b) => order(a.key).localeCompare(order(b.key)))
+}
+
 /**
  * The date on a note in the list, the way Notes.app writes it: a time today,
  * `Yesterday`, a weekday inside the week, otherwise the date.

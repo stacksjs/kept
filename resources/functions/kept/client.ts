@@ -99,3 +99,14 @@ export function lastPathSegment(): string {
   const parts = (globalThis.location?.pathname ?? '').split('/').filter(Boolean)
   return decodeURIComponent(parts[parts.length - 1] ?? '')
 }
+
+/** Rename a notes folder. `api.ts` has no method for it; the generated route `PUT /api/note-folders/{id}` does. */
+export async function renameNoteFolder(id: number, title: string): Promise<void> {
+  const token = session.token()
+  const res = await fetch(`/api/note-folders/${id}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', 'accept': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
+    body: JSON.stringify({ title }),
+  })
+  if (!res.ok) throw new Error(`Could not rename the folder (${res.status})`)
+}

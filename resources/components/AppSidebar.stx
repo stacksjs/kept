@@ -35,6 +35,7 @@
       ...sbWs.areas().map(a => ({ id: a.id, title: a.title, projects: projects.filter(p => p.area_id === a.id) })),
     ]
   })
+  const sbFolderCount = (id) => sbNotes.items().filter(note => note.note_folder_id === id).length
   const sbOwned = derived(() => sbWs.libraries().owned)
   const sbShared = derived(() => sbWs.libraries().shared)
   const sbName = derived(() => (sbSession.user() ? safe(sbSession.user().name || sbSession.user().email) : ''))
@@ -97,14 +98,14 @@
         <input id="sb-new" ref="sbInput" class="k-input" type="text" x-model="sbDraft" :placeholder="sbAdding() === 'area' ? 'Area name' : 'Project name'" @keydown="sbKey($event)" @blur="sbAdding.set('')">
       </form>
 
-      <div class="k-nav-group"><span>Notes</span></div>
+      <div class="k-nav-group"><span>Notes</span><button type="button" class="k-icon-btn" style="width: 24px; height: 24px" aria-label="New notes folder" title="New folder" @click="sbStart('folder')"><i class="i-hugeicons-folder-add k-ico" style="width: 15px; height: 15px" aria-hidden="true"></i></button></div>
       <button type="button" class="k-nav-item" :aria-current="sbIsFolder('all') ? 'page' : null" @click="sbOpenNotes('all')">
         <i class="i-hugeicons-note-01 k-ico" style="color: #e0a82e" aria-hidden="true"></i><span>All notes</span>
         <span class="k-count" :if="sbNotes.items().length > 0" :text="sbNotes.items().length"></span>
       </button>
       <button type="button" class="k-nav-item" :for="folder in sbWs.folders()" :key="folder.id" :aria-current="sbIsFolder(folder.id) ? 'page' : null" @click="sbOpenNotes(folder.id)">
         <i class="i-hugeicons-folder-01 k-ico" style="color: #e0a82e" aria-hidden="true"></i><span :text="safe(folder.title)"></span>
-        <span class="k-count" :if="folder.notes > 0" :text="folder.notes"></span>
+        <span class="k-count" :if="sbFolderCount(folder.id) > 0" :text="sbFolderCount(folder.id)"></span>
       </button>
       <button type="button" class="k-nav-item" :for="tag in sbNotes.tagList()" :key="'t' + tag.name" :aria-current="sbIsFolder('tag:' + tag.name) ? 'page' : null" @click="sbOpenNotes('tag:' + tag.name)">
         <i class="i-hugeicons-tag-01 k-ico" style="color: var(--text-3)" aria-hidden="true"></i><span :text="safe('#' + tag.name)"></span>
@@ -136,7 +137,7 @@
   </nav>
 
   <div class="k-sbar">
-    <MoreMenu :up="true" label="Add new" kind="add" text="New">
+    <MoreMenu :up="true" label="Add new" kind="add" text="New List">
       <button type="button" role="menuitem" @click="sbStart('project')"><i class="i-hugeicons-task-add-01 k-ico" aria-hidden="true"></i>New project</button>
       <button type="button" role="menuitem" @click="sbStart('area')"><i class="i-hugeicons-folder-add k-ico" aria-hidden="true"></i>New area</button>
       <button type="button" role="menuitem" @click="sbStart('folder')"><i class="i-hugeicons-note-add k-ico" aria-hidden="true"></i>New notes folder</button>

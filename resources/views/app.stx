@@ -41,11 +41,12 @@ useHead({ title: 'Library' })
   effect(() => { ws.route(); tasks.resetWindow(); notes.resetWindow(); if (!tasks.flat().some(todo => todo.id === tasks.cursor())) tasks.cursor.set(null) })
 
   function blocked() {
-    return !!ws.confirmation() || prompts.useOpen() || prompts.shareOpen() || prompts.versionsOpen()
+    return !!ws.confirmation() || tasks.quickOpen() || prompts.useOpen() || prompts.shareOpen() || prompts.versionsOpen()
   }
 
   function closeTop() {
     if (ws.confirmation()) { ws.answer(false); return true }
+    if (tasks.quickOpen()) { tasks.quickOpen.set(false); return true }
     if (prompts.useOpen()) { prompts.useOpen.set(false); return true }
     if (prompts.shareOpen()) { prompts.shareOpen.set(false); return true }
     if (prompts.versionsOpen()) { prompts.versionsOpen.set(false); return true }
@@ -73,6 +74,7 @@ useHead({ title: 'Library' })
       }
       return
     }
+    if (command === 'quickEntry') { event.preventDefault(); if (!ws.confirmation()) tasks.quickOpen.set(true); return }
     if (blocked() && command !== 'save') return
     if (command === 'save') { if (sec === 'prompts') { event.preventDefault(); prompts.save() } return }
     if (command === 'search') {
@@ -118,5 +120,6 @@ useHead({ title: 'Library' })
   <PromptEditor :if="section() === 'prompts'" />
 </div>
 <PromptSheets :if="section() === 'prompts'" />
+<QuickEntry />
 <AppOverlays />
 @endsection

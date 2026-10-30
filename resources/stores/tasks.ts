@@ -1,11 +1,30 @@
 import { defineStore, derived, state, useStore } from '@stacksjs/stx'
 import { api, deviceDay } from '../functions/kept/client'
-import { dayLabel, groupByDay, localDay } from '../functions/kept/format'
+import { dayLabel, groupUpcoming, localDay } from '../functions/kept/format'
 import { allTags, byOrder, counts, groupLogbook, moveId, newTodoFor, normalizeItem, normalizeTodo, orderChanges, progress, serializeChanges, splitToday, viewItems } from '../functions/kept/todos'
 import type { ChecklistItem, Todo } from '../functions/kept/types'
 
 /** A titled run of rows in a pane: Today's two halves, one day of Upcoming, one day of the Logbook. */
-export interface Group { key: string, label: string, sub: string, icon: string, bucket: '' | 'today' | 'evening', reorder: boolean, items: Todo[] }
+export interface Group {
+  key: string
+  /** `day` is an Upcoming block, `project` and `area` are the headed blocks of Anytime, `plain` is everything else. */
+  kind: 'plain' | 'day' | 'project' | 'area'
+  label: string
+  number: string
+  sub: string
+  icon: string
+  bucket: '' | 'today' | 'evening'
+  reorder: boolean
+  /** The project or area this block stands for. */
+  ref: number
+  /** To-dos left out of a collapsed project block (shown by "Show N more"). */
+  more: number
+  items: Todo[]
+}
+
+const plain = (key: string, items: Todo[], extra: Partial<Group> = {}): Group => ({ key, kind: 'plain', label: '', number: '', sub: '', icon: '', bucket: '', reorder: true, ref: 0, more: 0, items, ...extra })
+/** A project block shows this many to-dos until "Show N more" is pressed. */
+const COLLAPSED = 3
 
 const WINDOW = 40
 
@@ -36,28 +55,48 @@ defineStore('tasks', () => {
   const canAdd = derived(() => newTodoFor(workspace().view(), today()) !== null)
   const dragging = state<number | null>(null)
   const drafting = state(false)
+  /** The Quick Entry card, which can be opened from anywhere in the app. */
+  const quickOpen = state(false)
   const searchOpen = state(false)
   /** The inline editor opens on this panel when a toolbar button asks for it. */
   const editorTab = state('')
   const query = state('')
   /** Rows drawn so far: long lists (a big Logbook, a year of Upcoming) grow as you scroll instead of mounting at once. */
   const limit = state(WINDOW)
+  const expanded = state<number[]>([])
+  const expand = (projectId: number): void => expanded.update(list => (list.includes(projectId) ? list : [...list, projectId]))
 
   const rawGroups = derived<Group[]>(() => {
     const view = workspace().view()
     const day = today()
-    if (query().trim()) return [{ key: 'search', label: '', sub: '', icon: '', bucket: '', reorder: false, items: search(query()) }]
+    if (query().trim()) return [plain('search', search(query()), { reorder: false })]
     if (view.kind === 'list' && view.name === 'logbook')
-      return groupLogbook(logbook(), day, localDay, dayLabel).map(group => ({ key: group.key, label: group.label, sub: '', icon: '', bucket: '', reorder: false, items: group.items }))
+      return groupLogbook(logbook(), day, localDay, dayLabel).map(group => plain(group.key, group.items, { label: group.label, reorder: false }))
     if (view.kind === 'list' && view.name === 'upcoming')
-      return groupByDay(items(), day).map(group => ({ key: group.key, label: group.label, sub: group.sub, icon: '', bucket: '', reorder: false, items: group.items }))
+      return groupUpcoming(items(), day).map(group => plain(group.key, group.items, { kind: 'day', label: group.label, number: group.number, reorder: false }))
     if (view.kind === 'list' && view.name === 'today') {
       const halves = split()
-      const out: Group[] = [{ key: 'today', label: '', sub: '', icon: '', bucket: 'today', reorder: true, items: halves.main }]
-      if (halves.evening.length || dragging() !== null) out.push({ key: 'evening', label: 'This Evening', sub: '', icon: 'i-hugeicons-moon-02', bucket: 'evening', reorder: true, items: halves.evening })
+      const out: Group[] = [plain('today', halves.main, { bucket: 'today' })]
+      if (halves.evening.length || dragging() !== null) out.push(plain('evening', halves.evening, { label: 'This Evening', icon: 'i-hugeicons-moon-02', bucket: 'evening' }))
       return out
     }
-    return [{ key: 'all', label: '', sub: '', icon: '', bucket: '', reorder: true, items: items() }]
+    if (view.kind === 'list' && view.name === 'anytime') {
+      // Anytime, like Things: loose to-dos first, then a block for each area and project.
+      const all = items()
+      const out: Group[] = [plain('loose', all.filter(todo => !todo.project_id && !todo.area_id))]
+      for (const area of workspace().areas()) {
+        const mine = all.filter(todo => todo.area_id === area.id && !todo.project_id)
+        if (mine.length) out.push(plain(`area:${area.id}`, mine, { kind: 'area', label: area.title, ref: area.id }))
+      }
+      for (const project of workspace().projects()) {
+        const mine = all.filter(todo => todo.project_id === project.id)
+        if (!mine.length) continue
+        const open = expanded().includes(project.id) || mine.length <= COLLAPSED + 1
+        out.push(plain(`project:${project.id}`, open ? mine : mine.slice(0, COLLAPSED), { kind: 'project', label: project.title, ref: project.id, more: open ? 0 : mine.length - COLLAPSED }))
+      }
+      return out.filter(group => group.items.length || group.kind === 'plain')
+    }
+    return [plain('all', items())]
   })
   const total = derived(() => rawGroups().reduce((sum, group) => sum + group.items.length, 0))
   const groups = derived<Group[]>(() => {
@@ -330,7 +369,7 @@ defineStore('tasks', () => {
   }
 
   return {
-    open, logbook, loaded, today, fading, cursor, quickTitle, items, logItems, split, totals, tags, canAdd, selected, dragging, drafting, searchOpen, editorTab, query, limit, groups, flat, isEmpty, hasMore, more, resetWindow, startDraft, dropOn,
+    open, logbook, loaded, today, fading, cursor, quickTitle, items, logItems, split, totals, tags, canAdd, selected, dragging, expanded, expand, drafting, searchOpen, quickOpen, editorTab, query, limit, groups, flat, isEmpty, hasMore, more, resetWindow, startDraft, dropOn,
     openCount, doneCount, ring, areaCount, load, refreshDay, find, create, quickAdd, update, flushAll, remove, complete, reopen, toggle,
     reorder, nudge, addCheck, setCheck, removeCheck, moveCheck, step, byOrder,
   }

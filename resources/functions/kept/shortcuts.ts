@@ -1,5 +1,5 @@
 /** What a key press means in the signed-in app. Pure, so the table can be tested without a browser. */
-export type Command = 'next' | 'prev' | 'open' | 'complete' | 'new' | 'close' | 'moveUp' | 'moveDown' | 'search' | 'save'
+export type Command = 'next' | 'prev' | 'open' | 'complete' | 'new' | 'close' | 'moveUp' | 'moveDown' | 'search' | 'save' | 'quickEntry'
 
 export interface KeyInfo {
   key: string
@@ -26,6 +26,8 @@ export function commandFor(info: KeyInfo): Command | null {
   const mod = !!(info.metaKey || info.ctrlKey)
   const typing = isTyping(info)
   if (info.key === 'Escape') return 'close'
+  // Things' Quick Entry: Ctrl+Space, or Cmd+Shift+N where Ctrl+Space is taken by the system.
+  if ((info.ctrlKey && info.key === ' ') || (info.metaKey && info.shiftKey && (info.key === 'n' || info.key === 'N'))) return 'quickEntry'
   if (mod && info.key === 'Enter') return 'complete'
   if (mod && (info.key === 's' || info.key === 'S')) return 'save'
   if (mod && (info.key === 'f' || info.key === 'F') && !info.shiftKey) return 'search'

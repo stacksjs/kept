@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { dayLabel, daysBetween, deadlineLabel, deadlineState, groupByDay, initials, noteDate, plural, shortDate } from '../../resources/functions/kept/format'
+import { groupByDay, dayLabel, daysBetween, deadlineLabel, deadlineState, groupUpcoming, initials, noteDate, plural, shortDate } from '../../resources/functions/kept/format'
 
 const today = '2026-10-30'
 
@@ -33,6 +33,24 @@ describe('format', () => {
     expect(deadlineLabel('2026-10-31', today)).toBe('Due tomorrow')
     expect(deadlineLabel('2026-11-03', today)).toBe('Due in 4 days')
     expect(deadlineLabel('2026-12-24', today)).toBe('Due Dec 24')
+  })
+
+  it('groups upcoming by day for a week (empty days included), then by month', () => {
+    const items = [
+      { id: 1, start_date: '2026-10-31' },
+      { id: 2, start_date: '2026-10-31' },
+      { id: 3, start_date: '2026-11-03' },
+      { id: 4, start_date: '2026-11-20' },
+      { id: 5, start_date: '2026-11-25' },
+      { id: 6, start_date: '2027-01-05' },
+    ]
+    const groups = groupUpcoming(items, today)
+    expect(groups.map(group => group.label)).toEqual(['Tomorrow', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'November', 'January 2027'])
+    expect(groups.map(group => group.number)).toEqual(['31', '1', '2', '3', '4', '5', '', ''])
+    expect(groups[0]!.items.map(item => item.id)).toEqual([1, 2])
+    expect(groups[1]!.items).toEqual([])
+    expect(groups[3]!.items.map(item => item.id)).toEqual([3])
+    expect(groups[6]!.items.map(item => item.id)).toEqual([4, 5])
   })
 
   it('groups upcoming by day for a week, then by month', () => {

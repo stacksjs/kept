@@ -1,5 +1,5 @@
 import { defineStore, derived, state, useStore } from '@stacksjs/stx'
-import { api } from '../functions/kept/client'
+import { api, renameNoteFolder } from '../functions/kept/client'
 import { formatRoute, HOME, panelFor, parentOf, parseRoute, type Route, withItem } from '../functions/kept/router'
 import type { Area, LibraryList, NoteFolder, Project, SidebarData } from '../functions/kept/types'
 import type { View } from '../functions/kept/todos'
@@ -149,6 +149,14 @@ defineStore('workspace', () => {
     catch (cause) { fail(cause, 'Could not create the folder.'); return null }
   }
 
+  async function renameFolder(id: number, title: string): Promise<void> {
+    const name = title.trim()
+    if (!name) return
+    sidebar.update(side => side && ({ ...side, note_folders: side.note_folders.map(folder => folder.id === id ? { ...folder, title: name } : folder) }))
+    try { await renameNoteFolder(id, name) }
+    catch (cause) { fail(cause, 'Could not rename the folder.'); await reloadSidebar() }
+  }
+
   async function removeFolder(id: number): Promise<void> {
     try {
       await api.deleteNoteFolder(id)
@@ -184,6 +192,6 @@ defineStore('workspace', () => {
   return {
     route, sidebar, libraries, loaded, toasts, confirmation, section, panel, areas, projects, folders, view,
     say, fail, go, open, openItem, back, init, reloadSidebar, createArea, createProject, renameArea, renameProject,
-    removeArea, removeProject, createFolder, removeFolder, createLibrary, confirm, answer,
+    removeArea, removeProject, createFolder, renameFolder, removeFolder, createLibrary, confirm, answer,
   }
 })

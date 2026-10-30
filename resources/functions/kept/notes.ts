@@ -6,18 +6,40 @@ export function normalizeNote(raw: Record<string, unknown>): Note {
   return { ...(raw as unknown as Note), pinned: Boolean(raw.pinned), body: typeof raw.body === 'string' ? raw.body : '', title: String(raw.title ?? ''), snippet: String(raw.snippet ?? '') }
 }
 
-const byRecent = (a: Note, b: Note): number => String(b.updated_at).localeCompare(String(a.updated_at)) || b.id - a.id
+/** A note row as the server sends it, with the dates the list sorts and counts by. */
+export type NoteRow = Note & { created_at?: string, deleted_at?: string }
+
+export type NoteSort = 'edited' | 'created' | 'title'
+export const NOTE_SORTS: Array<{ id: NoteSort, label: string }> = [
+  { id: 'edited', label: 'Date edited' },
+  { id: 'created', label: 'Date created' },
+  { id: 'title', label: 'Title' },
+]
+
+export function sortNotes(notes: Note[], sort: NoteSort = 'edited'): Note[] {
+  const by = (note: Note): string => String(sort === 'created' ? ((note as NoteRow).created_at ?? note.updated_at) : note.updated_at)
+  return [...notes].sort((a, b) => sort === 'title'
+    ? (a.title || 'zzz').localeCompare(b.title || 'zzz', undefined, { sensitivity: 'base' }) || a.id - b.id
+    : by(b).localeCompare(by(a)) || b.id - a.id)
+}
 
 export interface NoteSection { key: string, label: string, notes: Note[] }
 
-/** Notes.app puts pinned notes in their own group above the rest, newest edit first in each. */
-export function groupNotes(notes: Note[]): NoteSection[] {
-  const pinned = notes.filter(note => note.pinned).sort(byRecent)
-  const rest = notes.filter(note => !note.pinned).sort(byRecent)
+/** Notes.app puts pinned notes in their own group above the rest, each group in the chosen order. */
+export function groupNotes(notes: Note[], sort: NoteSort = 'edited'): NoteSection[] {
+  const pinned = sortNotes(notes.filter(note => note.pinned), sort)
+  const rest = sortNotes(notes.filter(note => !note.pinned), sort)
   const sections: NoteSection[] = []
   if (pinned.length) sections.push({ key: 'pinned', label: 'Pinned', notes: pinned })
   if (rest.length) sections.push({ key: 'notes', label: pinned.length ? 'Notes' : '', notes: rest })
   return sections
+}
+
+/** Days until a deleted note is gone for good (the server keeps them `days` days). */
+export function daysLeft(deletedAt: string | undefined, days: number, now: Date = new Date()): number {
+  if (!deletedAt) return days
+  const gone = Date.parse(deletedAt.includes('T') ? deletedAt : `${deletedAt.replace(' ', 'T')}Z`) + days * 864e5
+  return Math.max(0, Math.ceil((gone - now.getTime()) / 864e5))
 }
 
 /** The notes in a folder (or all of them) that contain every word of the search. */

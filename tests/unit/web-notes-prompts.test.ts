@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { filterNotes, findLinked, groupNotes, matchSnippet, noteTags, normalizeNote, tagCounts } from '../../resources/functions/kept/notes'
+import { daysLeft, filterNotes, findLinked, groupNotes, matchSnippet, noteTags, normalizeNote, sortNotes, tagCounts, type NoteRow } from '../../resources/functions/kept/notes'
 import { filledSegments, filterPrompts, normalizePrompt, publicLinkUrl, segments } from '../../resources/functions/kept/promptview'
 import type { Note, Prompt } from '../../resources/functions/kept/types'
 
@@ -12,6 +12,26 @@ describe('notes', () => {
     const list = [note(1, { body: 'x #a #b' }), note(2, { body: 'y #a' })]
     expect(tagCounts(list)).toEqual([{ name: 'a', count: 2 }, { name: 'b', count: 1 }])
     expect(filterNotes(list, 'tag:b', '').map(n => n.id)).toEqual([1])
+  })
+
+  it('sorts by edit date, creation date or title, with pinned notes still first', () => {
+    const list: NoteRow[] = [
+      { ...note(1, { title: 'b', updated_at: '2026-10-05T00:00:00Z' }), created_at: '2026-10-01T00:00:00Z' },
+      { ...note(2, { title: 'A', updated_at: '2026-10-01T00:00:00Z' }), created_at: '2026-10-09T00:00:00Z' },
+      { ...note(3, { title: 'c', updated_at: '2026-10-03T00:00:00Z', pinned: true }), created_at: '2026-10-02T00:00:00Z' },
+    ]
+    expect(sortNotes(list, 'edited').map(n => n.id)).toEqual([1, 3, 2])
+    expect(sortNotes(list, 'created').map(n => n.id)).toEqual([2, 3, 1])
+    expect(sortNotes(list, 'title').map(n => n.id)).toEqual([2, 1, 3])
+    expect(groupNotes(list, 'title').map(g => g.notes.map(n => n.id))).toEqual([[3], [2, 1]])
+  })
+
+  it('counts the days left in Recently deleted', () => {
+    const now = new Date('2026-10-30T12:00:00Z')
+    expect(daysLeft('2026-10-30T11:00:00Z', 30, now)).toBe(30)
+    expect(daysLeft('2026-10-01 12:00:00', 30, now)).toBe(1)
+    expect(daysLeft('2026-08-01T00:00:00Z', 30, now)).toBe(0)
+    expect(daysLeft(undefined, 30, now)).toBe(30)
   })
 
   it('resolves a note link by title', () => {

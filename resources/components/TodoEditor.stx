@@ -136,13 +136,18 @@
         </form>
       </div>
 
-      <div class="k-meta" style="margin-top: 8px">
-        <button type="button" class="k-chip" :class="teIsToday() ? 'k-chip-accent' : ''" @click="teToggle('when')"><i class="k-ico" style="width: 13px; height: 13px" :class="teTodo().when === 'evening' ? 'i-f7-moon-fill' : teIsToday() ? 'i-f7-star-fill' : 'i-hugeicons-calendar-03'" aria-hidden="true"></i><span :text="teWhen()"></span></button>
-        <button type="button" class="k-chip" :if="teTodo().deadline" @click="teToggle('deadline')"><i class="i-hugeicons-flag-02 k-ico" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="deadlineLabel(teTodo().deadline, teToday())"></span></button>
+      <div class="k-card-foot">
+        <button type="button" class="k-chip-btn" @click="teToggle('when')"><i class="k-ico" style="width: 16px; height: 16px" :class="teTodo().when === 'evening' ? 'i-f7-moon-fill k-gl-evening' : teIsToday() ? 'i-f7-star-fill k-gl-today' : 'i-hugeicons-calendar-03'" aria-hidden="true"></i><span :text="teWhen()"></span></button>
+        <button type="button" class="k-chip-btn" :if="teTodo().deadline" @click="teToggle('deadline')"><i class="i-hugeicons-flag-02 k-ico" style="width: 15px; height: 15px" aria-hidden="true"></i><span :text="deadlineLabel(teTodo().deadline, teToday())"></span></button>
         <span class="k-chip k-chip-accent" :for="tag in teTodo().tags" :key="tag"><span :text="safe(tag)"></span>
           <button type="button" class="k-icon-btn" style="width: 20px; height: 20px" :aria-label="safe('Remove tag ' + tag)" @click="teDropTag(tag)"><i class="i-hugeicons-cancel-01 k-ico" style="width: 11px; height: 11px" aria-hidden="true"></i></button>
         </span>
         <span class="k-chip" :if="teTodo().repeat !== 'none'" :text="'Repeats ' + teTodo().repeat"></span>
+        <span style="flex: 1"></span>
+        <span class="k-sub" :if="teTodo().checklist.length" style="margin-right: 4px" :text="teCheckDone() + ' of ' + teTodo().checklist.length"></span>
+        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'tags' ? 'true' : 'false'" aria-label="Tags" title="Tags" @click="teToggle('tags')"><i class="i-hugeicons-tag-01 k-ico" aria-hidden="true"></i></button>
+        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'checklist' ? 'true' : 'false'" aria-label="Checklist" title="Checklist" @click="teToggle('checklist'); focusField('todo-check')"><i class="i-hugeicons-check-list k-ico" aria-hidden="true"></i></button>
+        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'deadline' ? 'true' : 'false'" aria-label="Deadline" title="Deadline" @click="teToggle('deadline')"><i class="i-hugeicons-flag-02 k-ico" aria-hidden="true"></i></button>
       </div>
 
       <div class="k-card-panel" :if="teTab() === 'when'">
@@ -184,16 +189,6 @@
         </div>
       </div>
 
-      <div class="k-card-tools">
-        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'when' ? 'true' : 'false'" aria-label="When" title="When" @click="teToggle('when')"><i class="i-hugeicons-calendar-03 k-ico" aria-hidden="true"></i></button>
-        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'tags' ? 'true' : 'false'" aria-label="Tags" title="Tags" @click="teToggle('tags')"><i class="i-hugeicons-tag-01 k-ico" aria-hidden="true"></i></button>
-        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'checklist' ? 'true' : 'false'" aria-label="Checklist" title="Checklist" @click="teToggle('checklist'); focusField('todo-check')"><i class="i-hugeicons-check-list k-ico" aria-hidden="true"></i></button>
-        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'deadline' ? 'true' : 'false'" aria-label="Deadline" title="Deadline" @click="teToggle('deadline')"><i class="i-hugeicons-flag-02 k-ico" aria-hidden="true"></i></button>
-        <button type="button" class="k-icon-btn" :aria-pressed="teTab() === 'more' ? 'true' : 'false'" aria-label="More" title="More" @click="teToggle('more')"><i class="i-hugeicons-more-horizontal k-ico" aria-hidden="true"></i></button>
-        <span style="flex: 1"></span>
-        <span class="k-sub" :if="teTodo().checklist.length" style="margin-right: 8px" :text="teCheckDone() + ' of ' + teTodo().checklist.length"></span>
-        <button type="button" class="k-btn k-btn-quiet" style="min-height: 30px" @click="teClose()">Done</button>
-      </div>
     </div>
   </div>
 </div>

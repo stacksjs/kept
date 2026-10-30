@@ -1,12 +1,16 @@
 <script client>
-  import { safe } from '../functions/kept/safe'
+  import { focusField } from '../functions/kept/client'
   import { noteDate } from '../functions/kept/format'
-  import { daysLeft } from '../functions/kept/trash'
+  import { daysLeft, NOTE_SORTS } from '../functions/kept/notes'
+  import { safe } from '../functions/kept/safe'
 
   const nlWs = useStore('workspace')
   const nlNotes = useStore('notes')
   const nlSearch = state('')
+  const nlName = state('')
+  const nlRenaming = state(false)
   const nlFolder = nlNotes.folder
+  const nlSorts = NOTE_SORTS
   const nlTitle = derived(() => {
     const folder = nlFolder()
     if (folder === 'all') return 'All notes'
@@ -16,41 +20,64 @@
     return found ? found.title : 'Notes'
   })
   const nlOpenId = derived(() => { const r = nlWs.route(); return r.section === 'notes' ? r.item : null })
+  const nlIsFolder = derived(() => typeof nlFolder() === 'number')
   const nlFolderName = (note) => {
     if (nlFolder() !== 'all' || !note.note_folder_id) return ''
     const found = nlWs.folders().find(f => f.id === note.note_folder_id)
     return found ? found.title : ''
   }
   const nlEmpty = derived(() => nlNotes.loaded() && nlNotes.visible().length === 0)
+  const nlCount = derived(() => nlNotes.visible().length)
   const nlEmptyText = derived(() => (nlNotes.searching() ? 'No notes match your search.' : nlFolder() === 'all' ? 'No notes yet. Start one with the plus button.' : nlFolder() === 'trash' ? 'Deleted notes stay here for 30 days.' : typeof nlFolder() === 'string' ? 'No notes use this tag.' : 'This folder is empty.'))
 
   effect(() => { nlNotes.search.set(nlSearch()) })
+  effect(() => { nlNotes.folder(); nlRenaming.set(false) })
 
-  const nlDate = (note) => {
-    if (nlFolder() === 'trash') { const entry = nlNotes.deletedEntry(note.id); return entry ? daysLeft(entry) + ' days left' : '' }
-    return noteDate(note.updated_at)
-  }
-  const nlIsFolder = derived(() => typeof nlFolder() === 'number')
+  const nlDate = (note) => (nlFolder() === 'trash' ? daysLeft(note.deleted_at, nlNotes.trashDays()) + ' days left' : noteDate(note.updated_at))
+  const nlPreview = (note) => safe(nlNotes.snippetFor(note) || 'No additional text')
   function nlScroll(event) {
     const box = event.target
     if (nlNotes.hasMore() && box.scrollHeight - box.scrollTop - box.clientHeight < 400) nlNotes.more()
   }
-  const nlPreview = (note) => safe(nlNotes.snippetFor(note) || 'No additional text')
+  function nlStartRename() { nlName.set(nlTitle()); nlRenaming.set(true); focusField('rename') }
+  async function nlCommitRename() {
+    if (!nlRenaming()) return
+    nlRenaming.set(false)
+    const name = nlName().trim()
+    if (name && name !== nlTitle()) await nlWs.renameFolder(nlFolder(), name)
+  }
+  function nlRenameKey(event) {
+    if (event.key === 'Enter') { event.preventDefault(); nlCommitRename() }
+    else if (event.key === 'Escape') { event.stopPropagation(); nlRenaming.set(false) }
+  }
   function nlAskDelete() {
     const id = nlFolder()
     if (typeof id !== 'number') return
     nlWs.confirm('Delete this folder?', 'Notes inside it move to All notes.', 'Delete folder', () => nlWs.removeFolder(id))
+  }
+  function nlAskEmpty() {
+    nlWs.confirm('Delete everything in Recently deleted?', 'These notes will be gone for good.', 'Delete all', () => nlNotes.emptyTrash())
   }
 </script>
 
 <section class="k-main k-pane" aria-label="Notes">
   <header class="k-head">
     <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="nlWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
-    <h1 class="k-title" :text="safe(nlTitle())"></h1>
-    <MoreMenu :if="nlIsFolder()" label="Folder options">
-      <button type="button" role="menuitem" class="is-danger" @click="nlAskDelete()"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i>Delete folder</button>
+    <div style="flex: 1; min-width: 0">
+      <h1 class="k-title" :if="!nlRenaming()" :text="safe(nlTitle())"></h1>
+      <input class="k-title-input" :if="nlRenaming()" x-model="nlName" aria-label="Folder name" data-focus="rename" @blur="nlCommitRename()" @keydown="nlRenameKey($event)">
+      <p class="k-sub" style="margin: 2px 0 0" :text="nlCount() + (nlCount() === 1 ? ' note' : ' notes')"></p>
+    </div>
+    <MoreMenu label="Sort and folder options">
+      <div class="k-menu-label">Sort by</div>
+      <button type="button" role="menuitemradio" :for="option in nlSorts" :key="option.id" :aria-checked="nlNotes.sort() === option.id ? 'true' : 'false'" @click="nlNotes.sort.set(option.id)"><span :text="option.label"></span></button>
+      <div class="k-menu-label" :if="nlIsFolder()">Folder</div>
+      <button type="button" role="menuitem" :if="nlIsFolder()" @click="nlStartRename()"><i class="i-hugeicons-pencil-edit-02 k-ico" aria-hidden="true"></i>Rename folder</button>
+      <button type="button" role="menuitem" :if="nlIsFolder()" class="is-danger" @click="nlAskDelete()"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i>Delete folder</button>
+      <button type="button" role="menuitem" :if="nlNotes.inTrash() && nlCount() > 0" class="is-danger" @click="nlAskEmpty()"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i>Empty Recently deleted</button>
     </MoreMenu>
     <button type="button" class="k-icon-btn" :if="!nlNotes.inTrash()" aria-label="New note" title="New note (N)" @click="nlNotes.create()"><i class="i-hugeicons-note-add k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-btn" :if="nlNotes.inTrash() && nlCount() > 0" @click="nlAskEmpty()">Empty</button>
   </header>
 
   <div class="k-search">
@@ -63,7 +90,7 @@
     <div :for="section in nlNotes.sections()" :key="section.key">
       <h2 class="k-section" :if="section.label"><i class="i-hugeicons-pin k-ico" :if="section.key === 'pinned'" style="width: 14px; height: 14px" aria-hidden="true"></i><span :text="section.label"></span></h2>
       <ul class="k-rows" role="list">
-        <li :for="note in section.notes" :key="note.id" role="listitem">
+        <li :for="note in section.notes" :key="note.id" role="listitem" class="k-note-row">
           <button type="button" class="k-note" :aria-current="nlOpenId() === note.id ? 'true' : 'false'" @click="nlNotes.open(note.id)">
             <span class="k-note-title" :text="safe(note.title || 'New note')"></span>
             <span class="k-note-line">
@@ -72,6 +99,7 @@
               <span class="k-sub" :if="nlFolderName(note)" style="margin-left: auto; white-space: nowrap" :text="safe(nlFolderName(note))"></span>
             </span>
           </button>
+          <button type="button" class="k-icon-btn k-note-pin" :if="!nlNotes.inTrash()" :aria-pressed="note.pinned ? 'true' : 'false'" :aria-label="note.pinned ? 'Unpin note' : 'Pin note'" @click="nlNotes.pin(note.id)"><i class="i-hugeicons-pin k-ico" aria-hidden="true"></i></button>
         </li>
       </ul>
     </div>

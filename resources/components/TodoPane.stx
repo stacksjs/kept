@@ -41,6 +41,7 @@
   const GLYPHS = { inbox: 'i-f7-tray-fill k-gl-inbox', today: 'i-f7-star-fill k-gl-today', upcoming: 'i-f7-calendar k-gl-upcoming', anytime: 'i-f7-layers-fill k-gl-anytime', someday: 'i-f7-archivebox-fill k-gl-someday', logbook: 'i-f7-checkmark-square-fill k-gl-logbook' }
   const tpGlyph = derived(() => (tpView().kind === 'list' ? GLYPHS[tpView().name] : ''))
   const tpEmptyIcon = derived(() => (tpView().kind === 'list' ? 'i-f7-' + { inbox: 'tray-fill', today: 'star-fill', upcoming: 'calendar', anytime: 'layers-fill', someday: 'archivebox-fill', logbook: 'checkmark-square-fill' }[tpView().name] : 'i-hugeicons-checkmark-circle-02'))
+  const tpIsUpcoming = derived(() => tpView().kind === 'list' && tpView().name === 'upcoming' && !tpQuery().trim())
   const tpSearching = derived(() => tpTasks.searchOpen() || tpQuery().trim().length > 0)
   const tpOpenId = derived(() => { const r = tpWs.route(); return r.section === 'todos' ? r.item : null })
   effect(() => { tpTasks.query.set(tpQuery()) })
@@ -53,6 +54,23 @@
   }
   function tpSearchKey(event) { if (event.key === 'Escape') { event.stopPropagation(); tpQuery.set(''); tpTasks.searchOpen.set(false) } }
   function tpNeeds(tab) { tpTasks.editorTab.set(tab) }
+  function tpActOn(tab) {
+    const id = tpTasks.cursor()
+    if (id === null) return
+    tpWs.openItem(id)
+    tpTasks.editorTab.set(tab)
+  }
+  function tpDeleteOpen() {
+    const id = tpOpenId()
+    if (id) tpWs.confirm('Delete this to-do?', 'It will be removed from all your lists.', 'Delete to-do', () => tpTasks.remove(id))
+  }
+  // Clicking the dimmed list, away from a row, a card or a control, closes the open to-do.
+  function tpBackdrop(event) {
+    if (!tpOpenId()) return
+    if (event.target.closest('.k-card, .k-row, button, a, input, select, textarea, label, .md')) return
+    tpTasks.flushAll()
+    tpWs.openItem(null)
+  }
   function tpScroll(event) {
     const box = event.target
     if (tpTasks.hasMore() && box.scrollHeight - box.scrollTop - box.clientHeight < 400) tpTasks.more()
@@ -76,7 +94,7 @@
   }
 </script>
 
-<section class="k-main k-pane" aria-label="To-dos">
+<section class="k-main k-pane k-todos" aria-label="To-dos" :data-editing="tpOpenId() ? 'true' : 'false'">
   <header class="k-head">
     <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="tpWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
     <ProgressRing :if="tpProject()" :value="tpTasks.ring(tpProject() ? tpProject().id : 0)" :size="26" />
@@ -98,10 +116,10 @@
     </MoreMenu>
   </header>
 
-  <div class="k-scroll" id="tp-scroll" @scroll="tpScroll($event)">
+  <div class="k-scroll" id="tp-scroll" @scroll="tpScroll($event)" @click="tpBackdrop($event)">
     <div class="k-wrap">
       <NewTodoCard />
-      <TodoGroup :for="group in tpTasks.groups()" :key="group.key" :items="group.items" :label="group.label" :sub="group.sub" :icon="group.icon" :bucket="group.bucket" :reorder="group.reorder" :projectNames="tpNeedsNames()" />
+      <TodoGroup :for="group in tpTasks.groups()" :key="group.key" :group="group" :projectNames="tpNeedsNames() && group.kind !== 'project' && group.kind !== 'area'" />
       <button type="button" class="k-btn k-btn-quiet k-more" :if="tpTasks.hasMore()" @click="tpTasks.more()">Show more</button>
 
       <div :if="tpAreaProjects().length && !tpSearching()">
@@ -114,15 +132,20 @@
         </div>
       </div>
 
-      <EmptyState :if="tpTasks.isEmpty() && tpTasks.loaded() && !tpAreaProjects().length && !tpTasks.drafting()" :icon="tpEmptyIcon()" :text="tpEmptyText()" />
+      <EmptyState :if="tpTasks.isEmpty() && tpTasks.loaded() && !tpAreaProjects().length && !tpTasks.drafting() && !tpIsUpcoming()" :icon="tpEmptyIcon()" :text="tpEmptyText()" />
       <div class="k-gap"></div>
     </div>
   </div>
 
-  <div class="k-bar" role="toolbar" aria-label="To-do actions">
+  <div class="k-bar" role="toolbar" aria-label="To-do actions" :if="!tpOpenId()">
     <button type="button" class="k-icon-btn" aria-label="New to-do" title="New to-do (N)" :disabled="!tpTasks.canAdd()" @click="tpTasks.startDraft()"><i class="i-hugeicons-plus-sign k-ico k-ico-lg" aria-hidden="true"></i></button>
-    <button type="button" class="k-icon-btn" aria-label="Schedule the open to-do" title="When" :disabled="!tpOpenId()" @click="tpNeeds('when')"><i class="i-hugeicons-calendar-03 k-ico k-ico-lg" aria-hidden="true"></i></button>
-    <button type="button" class="k-icon-btn" aria-label="Move the open to-do" title="Move" :disabled="!tpOpenId()" @click="tpNeeds('more')"><i class="i-hugeicons-arrow-right-02 k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Schedule the selected to-do" title="When" :disabled="tpTasks.cursor() === null" @click="tpActOn('when')"><i class="i-hugeicons-calendar-03 k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Move the selected to-do" title="Move" :disabled="tpTasks.cursor() === null" @click="tpActOn('more')"><i class="i-hugeicons-arrow-right-02 k-ico k-ico-lg" aria-hidden="true"></i></button>
     <button type="button" class="k-icon-btn" aria-label="Search" title="Search (/)" :aria-pressed="tpSearching() ? 'true' : 'false'" @click="tpToggleSearch()"><i class="i-hugeicons-search-01 k-ico k-ico-lg" aria-hidden="true"></i></button>
+  </div>
+  <div class="k-bar" role="toolbar" aria-label="Open to-do actions" :if="tpOpenId()">
+    <button type="button" class="k-icon-btn" aria-label="Move the open to-do" title="Move" @click="tpNeeds('more')"><i class="i-hugeicons-arrow-right-02 k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="Delete the open to-do" title="Delete" @click="tpDeleteOpen()"><i class="i-hugeicons-delete-02 k-ico k-ico-lg" aria-hidden="true"></i></button>
+    <button type="button" class="k-icon-btn" aria-label="More for the open to-do" title="More" @click="tpNeeds('more')"><i class="i-hugeicons-more-horizontal k-ico k-ico-lg" aria-hidden="true"></i></button>
   </div>
 </section>

@@ -1,0 +1,73 @@
+<script client>
+  import { activeElement, focusFirst, trapTab } from '../functions/kept/client'
+  import { parseTagInput, whenPatch } from '../functions/kept/todos'
+
+  const qeTasks = useStore('tasks')
+  const qeTitle = state('')
+  const qeNotes = state('')
+  const qeWhen = state('')
+  const qeDate = state('')
+  const qeTags = state('')
+  const qePanel = useRef('qePanel')
+  const qeChoices = [
+    { id: 'today', label: 'Today', icon: 'i-f7-star-fill', tone: 'k-gl-today' },
+    { id: 'evening', label: 'This Evening', icon: 'i-f7-moon-fill', tone: 'k-gl-evening' },
+    { id: 'anytime', label: 'Anytime', icon: '', tone: '' },
+    { id: 'someday', label: 'Someday', icon: '', tone: '' },
+  ]
+  let qeReturn = null
+
+  effect(() => {
+    if (qeTasks.quickOpen()) {
+      qeReturn = activeElement()
+      void nextTick(() => focusFirst(qePanel.current))
+    }
+    else if (qeReturn) { const back = qeReturn; qeReturn = null; back.focus() }
+  })
+
+  function qeReset() { qeTitle.set(''); qeNotes.set(''); qeWhen.set(''); qeDate.set(''); qeTags.set('') }
+  function qeClose() { qeReset(); qeTasks.quickOpen.set(false) }
+  function qePick(id) { qeWhen.set(qeWhen() === id ? '' : id); qeDate.set('') }
+  function qeSetDate(event) { qeDate.set(event.target.value); if (event.target.value) qeWhen.set('') }
+  async function qeSave(event) {
+    event.preventDefault()
+    const title = qeTitle().trim()
+    if (!title) return
+    // Quick Entry files into the Inbox unless a time is chosen, whatever list is open.
+    const extra = { notes: qeNotes(), when: 'inbox', project_id: null, area_id: null, start_date: null }
+    if (qeDate()) Object.assign(extra, whenPatch({ date: qeDate() }))
+    else if (qeWhen()) Object.assign(extra, whenPatch(qeWhen()))
+    const tags = parseTagInput(qeTags(), [])
+    if (tags.length) extra.tags = tags
+    await qeTasks.create(title, extra)
+    qeClose()
+  }
+  function qeKey(event) {
+    if (event.key === 'Escape') { event.stopPropagation(); qeClose(); return }
+    trapTab(qePanel.current, event)
+  }
+</script>
+
+<div class="k-quick-scrim" :if="qeTasks.quickOpen()" @click="qeClose()">
+  <form class="k-quick-card" ref="qePanel" role="dialog" aria-modal="true" aria-label="Quick Entry" @click="$event.stopPropagation()" @keydown="qeKey($event)" @submit="qeSave($event)">
+    <label class="sr-only" for="qe-title">Title</label>
+    <input id="qe-title" class="k-card-title" data-autofocus type="text" x-model="qeTitle" placeholder="New to-do" autocomplete="off">
+    <label class="sr-only" for="qe-notes">Notes</label>
+    <textarea id="qe-notes" class="k-notes" style="min-height: 44px; padding: 6px 0; font-size: 15px" x-model="qeNotes" placeholder="Notes"></textarea>
+    <div class="k-pills" role="group" aria-label="When" style="margin-top: 4px">
+      <button type="button" class="k-pill" :for="choice in qeChoices" :key="choice.id" :aria-pressed="qeWhen() === choice.id ? 'true' : 'false'" style="min-height: 30px" @click="qePick(choice.id)"><i class="k-ico" :if="choice.icon" :class="[choice.icon, choice.tone]" style="width: 14px; height: 14px" aria-hidden="true"></i><span :text="choice.label"></span></button>
+      <label class="sr-only" for="qe-date">On a date</label>
+      <input id="qe-date" class="k-input" type="date" style="width: auto; min-height: 30px; padding: 2px 10px; border-radius: 999px" :value="qeDate()" @change="qeSetDate($event)">
+    </div>
+    <div style="display: flex; align-items: center; gap: 8px; margin-top: 10px">
+      <i class="i-hugeicons-tag-01 k-ico" style="color: var(--text-3)" aria-hidden="true"></i>
+      <label class="sr-only" for="qe-tags">Tags</label>
+      <input id="qe-tags" class="k-bare" type="text" x-model="qeTags" placeholder="Tags, separated by commas" style="font-size: 14px">
+    </div>
+    <div class="k-card-foot" style="justify-content: flex-end; gap: 8px">
+      <span class="k-sub" style="flex: 1">Return to save, Esc to cancel</span>
+      <button type="button" class="k-btn k-btn-quiet" style="min-height: 30px" @click="qeClose()">Cancel</button>
+      <button type="submit" class="k-btn k-btn-primary" style="min-height: 30px">Save to Inbox</button>
+    </div>
+  </form>
+</div>

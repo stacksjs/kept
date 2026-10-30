@@ -1,31 +1,38 @@
 <script>
-interface TodoGroupProps { items?: any[], label?: string, sub?: string, icon?: string, bucket?: string, reorder?: boolean, projectNames?: boolean }
-const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = false, projectNames = true } = defineProps<TodoGroupProps>()
+interface TodoGroupProps { group?: any, projectNames?: boolean }
+const { group = null, projectNames = true } = defineProps<TodoGroupProps>()
 </script>
 <script client>
-  import { safe } from '../functions/kept/safe'
   import { focusField } from '../functions/kept/client'
   import { deadlineLabel, deadlineState } from '../functions/kept/format'
+  import { safe } from '../functions/kept/safe'
 
-  const tgItems = useReactiveProp('items', [])
-  const tgLabel = useReactiveProp('label', '')
-  const tgSub = useReactiveProp('sub', '')
-  const tgIcon = useReactiveProp('icon', '')
-  const tgBucket = useReactiveProp('bucket', '')
-  const tgReorder = useReactiveProp('reorder', false)
+  const tgGroup = useReactiveProp('group', null)
   const tgNames = useReactiveProp('projectNames', true)
+  const tgItems = derived(() => (tgGroup() ? tgGroup().items : []))
+  const tgLabel = derived(() => (tgGroup() ? tgGroup().label : ''))
+  const tgKind = derived(() => (tgGroup() ? tgGroup().kind : 'plain'))
+  const tgBucket = derived(() => (tgGroup() ? tgGroup().bucket : ''))
+  const tgReorder = derived(() => !!tgGroup() && tgGroup().reorder)
   const tgTasks = useStore('tasks')
   const tgWs = useStore('workspace')
   const tgDrop = state(null)
 
   const tgOpenId = derived(() => { const r = tgWs.route(); return r.section === 'todos' ? r.item : null })
-  const tgCanDrag = derived(() => tgReorder() === true || tgReorder() === 'true')
+  const tgCanDrag = derived(() => tgReorder() === true)
+  const tgInToday = (todo) => {
+    const view = tgWs.view()
+    if (view.kind === 'list' && view.name === 'today') return false
+    return todo.when === 'today' || todo.when === 'evening' || (todo.when === 'anytime' && !!todo.start_date && todo.start_date <= tgTasks.today())
+  }
+  const tgProjectOf = derived(() => (tgGroup() && tgKind() === 'project' ? tgWs.projects().find(p => p.id === tgGroup().ref) : null))
+  function tgOpenProject() { if (tgKind() === 'project') tgWs.open({ section: 'todos', view: { kind: 'project', id: tgGroup().ref }, item: null }); else if (tgKind() === 'area') tgWs.open({ section: 'todos', view: { kind: 'area', id: tgGroup().ref }, item: null }) }
   const tgIsDone = (todo) => !!todo.completed_at || tgTasks.fading()[todo.id] !== undefined
   const tgLeaving = (todo) => tgTasks.fading()[todo.id] === 'leaving'
   const tgDeadline = (todo) => (todo.deadline ? deadlineLabel(todo.deadline, tgTasks.today()) : '')
   const tgDeadlineState = (todo) => (todo.deadline ? deadlineState(todo.deadline, tgTasks.today()) : 'later')
   const tgProject = (todo) => {
-    if (!(tgNames() === true || tgNames() === 'true')) return ''
+    if (!(tgNames() === true)) return ''
     const project = tgWs.projects().find(p => p.id === todo.project_id)
     if (project) return project.title
     const area = tgWs.areas().find(a => a.id === todo.area_id)
@@ -93,11 +100,21 @@ const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = fals
 </script>
 
 <section>
-  <h2 class="k-section" :if="tgLabel()">
+  <div class="k-day" :if="tgKind() === 'day'">
+    <span class="k-day-num" :if="tgGroup().number" :text="tgGroup().number"></span>
+    <span class="k-day-name" :text="tgLabel()"></span>
+    <span class="k-day-rule"></span>
+  </div>
+  <div class="k-proj-head" :if="tgKind() === 'project' || tgKind() === 'area'">
+    <ProgressRing :if="tgKind() === 'project'" :value="tgTasks.ring(tgGroup().ref)" :size="20" />
+    <i class="i-hugeicons-folder-02 k-ico" :if="tgKind() === 'area'" style="color: var(--text-3)" aria-hidden="true"></i>
+    <button type="button" :text="safe(tgLabel())" @click="tgOpenProject()"></button>
+  </div>
+  <h2 class="k-section" :if="tgKind() === 'plain' && tgLabel()">
     <i class="i-f7-moon-fill k-gl k-gl-evening" :if="tgBucket() === 'evening'" style="width: 16px; height: 16px" aria-hidden="true"></i>
     <span :text="tgLabel()"></span>
-    <span class="k-sub" :if="tgSub()" :text="tgSub()"></span>
   </h2>
+  <div class="k-day-empty" :if="tgKind() === 'day' && tgItems().length === 0"></div>
   <p class="k-sub" :if="tgItems().length === 0 && tgLabel() && tgBucket()" style="padding: 8px 10px 12px" @dragover="tgTasks.dragging() !== null && $event.preventDefault()" @drop="tgDropEmpty($event)">Drag a to-do here.</p>
   <ul class="k-rows" role="list" :if="tgItems().length > 0" style="padding: 0">
     <template :for="todo in tgItems()" :key="todo.id">
@@ -107,11 +124,12 @@ const { items = [], label = '', sub = '', icon = '', bucket = '', reorder = fals
           <i class="i-hugeicons-tick-02 k-tick" aria-hidden="true"></i>
         </button>
         <div class="k-row-body">
-          <button type="button" class="k-row-title"><span :text="safe(todo.title || 'New to-do')"></span><i class="i-hugeicons-file-01 k-ico k-note-icon" :if="todo.notes" aria-hidden="true"></i></button>
+          <button type="button" class="k-row-title"><i class="i-f7-star-fill k-ico k-today-star" :if="tgInToday(todo)" aria-label="In Today"></i><span :text="safe(todo.title || 'New to-do')"></span><i class="i-hugeicons-file-01 k-ico k-note-icon" :if="todo.notes" aria-hidden="true"></i></button>
           <div class="k-meta" :if="tgChips(todo).length"><span class="k-chip" :for="chip in tgChips(todo)" :key="chip.key" :class="chip.tone"><i class="k-ico" :class="chip.icon" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="chip.text"></span></span></div>
         </div>
       </li>
       <li class="k-card" :if="tgOpenId() === todo.id"><TodoEditor /></li>
     </template>
   </ul>
+  <button type="button" class="k-show-more" :if="tgGroup() && tgGroup().more > 0" @click="tgTasks.expand(tgGroup().ref)" :text="'Show ' + tgGroup().more + ' more'"></button>
 </section>
