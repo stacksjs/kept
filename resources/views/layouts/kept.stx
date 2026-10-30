@@ -242,7 +242,7 @@ useHead({
   .k-prompt { display: block; width: 100%; padding: 12px 14px; border-radius: 10px; text-align: left; }
   .k-prompt:hover { background: var(--hover); }
   .k-prompt[aria-current='true'] { background: var(--sel); }
-  .k-lib-badge { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; flex: none; color: var(--accent-ink); background: var(--lib, var(--accent)); }
+  .k-lib-badge { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; flex: none; color: #fdfdfe; background: var(--accent); }
   .k-lib-badge .k-ico { width: 18px; height: 18px; }
   .k-body-edit { position: relative; }
   .k-body-edit textarea { min-height: 220px; line-height: 1.6; field-sizing: content; }

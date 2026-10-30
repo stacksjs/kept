@@ -1,3 +1,5 @@
+import { safe } from './safe'
+
 /**
  * Just enough Markdown for notes and to-do notes: headings, bold, italic,
  * inline code, links, lists and `- [ ]` check lines. Input is escaped first and
@@ -5,7 +7,7 @@
  * shared prompt cannot inject markup.
  */
 const escapeHtml = (text: string): string =>
-  text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  safe(text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'))
 
 const safeUrl = (url: string): boolean => /^(https?:\/\/|mailto:)/i.test(url)
 

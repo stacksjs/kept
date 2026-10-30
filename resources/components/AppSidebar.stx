@@ -1,4 +1,5 @@
 <script client>
+  import { safe } from '../functions/kept/safe'
   import { initials } from '../functions/kept/format'
 
   const sbWs = useStore('workspace')
@@ -35,7 +36,7 @@
   })
   const sbOwned = derived(() => sbWs.libraries().owned)
   const sbShared = derived(() => sbWs.libraries().shared)
-  const sbName = derived(() => (sbSession.user() ? sbSession.user().name || sbSession.user().email : ''))
+  const sbName = derived(() => (sbSession.user() ? safe(sbSession.user().name || sbSession.user().email) : ''))
   const sbInitials = derived(() => initials(sbName()))
   const sbThemeIcon = derived(() => (sbPref() === 'dark' ? 'i-hugeicons-moon-02' : sbPref() === 'light' ? 'i-hugeicons-sun-03' : 'i-hugeicons-computer'))
   const sbThemeLabel = derived(() => (sbPref() === 'dark' ? 'Dark' : sbPref() === 'light' ? 'Light' : 'System'))
@@ -85,12 +86,12 @@
       <div :for="group in sbGroups()" :key="group.id">
         <button type="button" class="k-nav-item" :if="group.id" :aria-current="sbIsKind('area', group.id) ? 'page' : null" @click="sbOpenKind('area', group.id)" style="font-weight: 600">
           <i class="k-ico i-hugeicons-folder-02" aria-hidden="true"></i>
-          <span :text="group.title"></span>
+          <span :text="safe(group.title)"></span>
           <span class="k-count" :if="sbTasks.areaCount(group.id) > 0" :text="sbTasks.areaCount(group.id)"></span>
         </button>
         <button type="button" class="k-nav-item" :for="project in group.projects" :key="project.id" :style="group.id ? 'padding-left: 30px' : ''" :aria-current="sbIsKind('project', project.id) ? 'page' : null" @click="sbOpenKind('project', project.id)">
           <ProgressRing :value="sbTasks.ring(project.id)" />
-          <span :text="project.title" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"></span>
+          <span :text="safe(project.title)" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap"></span>
           <span class="k-count" :if="sbTasks.openCount(project.id) > 0" :text="sbTasks.openCount(project.id)"></span>
         </button>
       </div>
@@ -107,7 +108,7 @@
         <span class="k-count" :if="sbNotes.items().length > 0" :text="sbNotes.items().length"></span>
       </button>
       <button type="button" class="k-nav-item" :for="folder in sbWs.folders()" :key="folder.id" :aria-current="sbIsFolder(folder.id) ? 'page' : null" @click="sbOpenNotes(folder.id)">
-        <i class="k-ico i-hugeicons-folder-01" aria-hidden="true"></i><span :text="folder.title"></span>
+        <i class="k-ico i-hugeicons-folder-01" aria-hidden="true"></i><span :text="safe(folder.title)"></span>
         <span class="k-count" :if="folder.notes > 0" :text="folder.notes"></span>
       </button>
       <form :if="sbAdding() === 'folder'" @submit="sbCommit($event)" style="padding: 4px 4px 0">
@@ -118,12 +119,12 @@
 
       <div class="k-nav-group"><span>Prompt libraries</span></div>
       <button type="button" class="k-nav-item" :for="lib in sbOwned()" :key="lib.id" :aria-current="sbIsLibrary(lib.id) ? 'page' : null" @click="sbOpenLibrary(lib.id)">
-        <i class="k-ico" :class="lib.icon || 'i-hugeicons-book-02'" :style="'color:' + (lib.color || 'var(--accent-text)')" aria-hidden="true"></i><span :text="lib.title"></span>
+        <i class="k-ico" :class="lib.icon || 'i-hugeicons-book-02'" :style="'color:' + (lib.color || 'var(--accent-text)')" aria-hidden="true"></i><span :text="safe(lib.title)"></span>
         <span class="k-count" :if="lib.prompts > 0" :text="lib.prompts"></span>
       </button>
       <div class="k-nav-group" :if="sbShared().length"><span>Shared with me</span></div>
       <button type="button" class="k-nav-item" :for="lib in sbShared()" :key="'s' + lib.id" :aria-current="sbIsLibrary(lib.id) ? 'page' : null" @click="sbOpenLibrary(lib.id)">
-        <i class="k-ico" :class="lib.icon || 'i-hugeicons-book-02'" :style="'color:' + (lib.color || 'var(--accent-text)')" aria-hidden="true"></i><span :text="lib.title"></span>
+        <i class="k-ico" :class="lib.icon || 'i-hugeicons-book-02'" :style="'color:' + (lib.color || 'var(--accent-text)')" aria-hidden="true"></i><span :text="safe(lib.title)"></span>
       </button>
       <form :if="sbAdding() === 'library'" @submit="sbCommit($event)" style="padding: 4px 4px 0">
         <label class="sr-only" for="sb-lib">Library name</label>

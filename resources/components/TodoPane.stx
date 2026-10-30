@@ -1,4 +1,5 @@
 <script client>
+  import { safe } from '../functions/kept/safe'
   const tpWs = useStore('workspace')
   const tpTasks = useStore('tasks')
   const tpQuick = state('')
@@ -68,7 +69,7 @@
     <ProgressRing :if="tpProject()" :value="tpTasks.ring(tpProject() ? tpProject().id : 0)" :size="26" />
     <i class="k-ico k-star i-hugeicons-star" :if="tpIsToday()" style="width: 26px; height: 26px" aria-hidden="true"></i>
     <div style="flex: 1; min-width: 0">
-      <h1 class="k-title" :if="!tpEditing()" :text="tpTitle()" :tabindex="tpEditable() ? 0 : null" @click="tpEditable() && tpEdit()" @keydown="tpEditable() && $event.key === 'Enter' && tpEdit()" :aria-label="tpEditable() ? tpTitle() + ', press Enter to rename' : null" :title="tpEditable() ? 'Rename' : null"></h1>
+      <h1 class="k-title" :if="!tpEditing()" :text="safe(tpTitle())" :tabindex="tpEditable() ? 0 : null" @click="tpEditable() && tpEdit()" @keydown="tpEditable() && $event.key === 'Enter' && tpEdit()" :aria-label="tpEditable() ? safe(tpTitle()) + ', press Enter to rename' : null" :title="tpEditable() ? 'Rename' : null"></h1>
       <input class="k-title-input" :if="tpEditing()" x-model="tpName" aria-label="Name" data-focus="rename" @blur="tpCommitName()" @keydown="tpNameKey($event)">
       <p class="k-sub" :if="tpSubtitle()" style="margin: 2px 0 0" :text="tpSubtitle()"></p>
     </div>
@@ -91,7 +92,7 @@
       <h2 class="k-section">Projects</h2>
       <div class="k-nav">
         <button type="button" class="k-nav-item" :for="project in tpAreaProjects()" :key="project.id" @click="tpWs.open({ section: 'todos', view: { kind: 'project', id: project.id }, item: null })">
-          <ProgressRing :value="tpTasks.ring(project.id)" /><span :text="project.title"></span>
+          <ProgressRing :value="tpTasks.ring(project.id)" /><span :text="safe(project.title)"></span>
           <span class="k-count" :text="tpTasks.openCount(project.id)"></span>
         </button>
       </div>

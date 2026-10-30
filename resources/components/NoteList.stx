@@ -1,4 +1,5 @@
 <script client>
+  import { safe } from '../functions/kept/safe'
   import { noteDate } from '../functions/kept/format'
 
   const nlWs = useStore('workspace')
@@ -23,7 +24,7 @@
   effect(() => { nlNotes.search.set(nlSearch()) })
 
   const nlDate = (note) => noteDate(note.updated_at)
-  const nlPreview = (note) => nlNotes.snippetFor(note) || 'No additional text'
+  const nlPreview = (note) => safe(nlNotes.snippetFor(note) || 'No additional text')
   function nlAskDelete() {
     const id = nlFolder()
     if (id === 'all') return
@@ -34,7 +35,7 @@
 <section class="k-pane k-main" aria-label="Notes">
   <header class="k-head">
     <button type="button" class="k-icon-btn k-back k-back-main" aria-label="Back to lists" @click="nlWs.back()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
-    <h1 class="k-title" :text="nlTitle()"></h1>
+    <h1 class="k-title" :text="safe(nlTitle())"></h1>
     <MoreMenu :if="nlFolder() !== 'all'" label="Folder options">
       <button type="button" role="menuitem" class="is-danger" @click="nlAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete folder</button>
     </MoreMenu>
@@ -53,11 +54,11 @@
       <ul class="k-rows" role="list">
         <li :for="note in section.notes" :key="note.id" role="listitem">
           <button type="button" class="k-note" :aria-current="nlOpenId() === note.id ? 'true' : 'false'" @click="nlNotes.open(note.id)">
-            <span class="k-note-title" :text="note.title || 'New note'"></span>
+            <span class="k-note-title" :text="safe(note.title || 'New note')"></span>
             <span class="k-note-line">
               <span class="k-sub" :text="nlDate(note)"></span>
               <span class="k-note-snippet" :text="nlPreview(note)"></span>
-              <span class="k-sub" :if="nlFolderName(note)" style="margin-left: auto; white-space: nowrap" :text="nlFolderName(note)"></span>
+              <span class="k-sub" :if="nlFolderName(note)" style="margin-left: auto; white-space: nowrap" :text="safe(nlFolderName(note))"></span>
             </span>
           </button>
         </li>

@@ -1,0 +1,58 @@
+<script>
+interface LibraryEditSheetProps { open?: boolean }
+const { open = false } = defineProps<LibraryEditSheetProps>()
+</script>
+<script client>
+  const lsOpen = useReactiveProp('open', false)
+  const lsEmit = defineEmits()
+  const lsPrompts = useStore('prompts')
+  const lsTitle = state('')
+  const lsDescription = state('')
+  const lsColor = state('#1f6bff')
+  const lsIcon = state('i-hugeicons-book-02')
+  const lsIsOpen = derived(() => lsOpen() === true || lsOpen() === 'true')
+  const lsColors = ['#1f6bff', '#0f8a5f', '#c2410c', '#a21caf', '#be123c', '#475569']
+  const lsIcons = [
+    { name: 'Book', icon: 'i-hugeicons-book-02' },
+    { name: 'Pen', icon: 'i-hugeicons-pen-tool-03' },
+    { name: 'Code', icon: 'i-hugeicons-code' },
+    { name: 'Idea', icon: 'i-hugeicons-bulb' },
+    { name: 'Message', icon: 'i-hugeicons-message-01' },
+    { name: 'Search', icon: 'i-hugeicons-search-01' },
+  ]
+  effect(() => {
+    if (lsIsOpen()) {
+      const lib = lsPrompts.library()
+      if (lib) { lsTitle.set(lib.title); lsDescription.set(lib.description || ''); lsColor.set(lib.color || '#1f6bff'); lsIcon.set(lib.icon || 'i-hugeicons-book-02') }
+    }
+  })
+  async function lsSave(event) {
+    event.preventDefault()
+    if (!lsTitle().trim()) return
+    await lsPrompts.saveLibrary({ title: lsTitle().trim(), description: lsDescription(), color: lsColor(), icon: lsIcon() })
+    lsEmit('close')
+  }
+</script>
+
+<Sheet :open="lsIsOpen()" title="Edit library" @close="lsEmit('close')">
+  <form @submit="lsSave($event)">
+    <div class="k-field"><label class="k-label" for="ls-title">Name</label><input id="ls-title" class="k-input" type="text" x-model="lsTitle" data-autofocus></div>
+    <div class="k-field"><label class="k-label" for="ls-desc">Description</label><input id="ls-desc" class="k-input" type="text" x-model="lsDescription"></div>
+    <div class="k-field">
+      <span class="k-label" id="ls-color">Color</span>
+      <div class="k-pills" role="radiogroup" aria-labelledby="ls-color">
+        <button type="button" class="k-icon-btn" :for="color in lsColors" :key="color" role="radio" :aria-checked="lsColor() === color ? 'true' : 'false'" :aria-label="'Color ' + color" :style="'background:' + color + ';border-radius:50%;width:32px;height:32px;' + (lsColor() === color ? 'box-shadow:0 0 0 3px var(--bg-raised),0 0 0 5px ' + color : '')" @click="lsColor.set(color)"></button>
+      </div>
+    </div>
+    <div class="k-field">
+      <span class="k-label" id="ls-icon">Icon</span>
+      <div class="k-pills" role="radiogroup" aria-labelledby="ls-icon">
+        <button type="button" class="k-pill" :for="item in lsIcons" :key="item.icon" role="radio" :aria-checked="lsIcon() === item.icon ? 'true' : 'false'" :aria-label="item.name" @click="lsIcon.set(item.icon)"><i class="k-ico" :class="item.icon" aria-hidden="true"></i></button>
+      </div>
+    </div>
+    <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px">
+      <button type="button" class="k-btn" @click="lsEmit('close')">Cancel</button>
+      <button type="submit" class="k-btn k-btn-primary">Save</button>
+    </div>
+  </form>
+</Sheet>

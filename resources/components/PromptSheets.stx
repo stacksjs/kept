@@ -1,0 +1,82 @@
+<script client>
+  import { safe } from '../functions/kept/safe'
+  import { noteDate } from '../functions/kept/format'
+  import { initials } from '../functions/kept/format'
+
+  const psPrompts = useStore('prompts')
+  const psInvite = state('')
+  const psRole = state('viewer')
+  const psName = derived(() => (psPrompts.draft() ? safe(psPrompts.draft().title) : ''))
+  const psVersionDate = (version) => noteDate(version.created_at)
+  const psCurrent = (version) => !!psPrompts.selected() && version.version === psPrompts.selected().version
+
+  async function psSend(event) {
+    event.preventDefault()
+    if (await psPrompts.invite(psInvite(), psRole())) psInvite.set('')
+  }
+  function psRoleChange(person, event) { psPrompts.changeRole(person, event.target.value) }
+  function psWho(person) { return safe(person.name || person.email) }
+  function psSetValue(name, event) { psPrompts.setValue(name, event.target.value) }
+</script>
+
+<!-- Use: fill the variables, copy the result -->
+<Sheet :open="psPrompts.useOpen()" :title="'Use: ' + psName()" @close="psPrompts.useOpen.set(false)">
+  <p class="k-sub" :if="psPrompts.variables().length" style="margin: 0 0 14px">Fill in each value. The prompt updates as you type.</p>
+  <div class="k-field" :for="name in psPrompts.variables()" :key="name">
+    <label class="k-label" :for="'ps-var-' + name" :text="safe(name)"></label>
+    <textarea :id="'ps-var-' + name" class="k-textarea" rows="1" style="min-height: 44px; field-sizing: content" :value="psPrompts.values()[name] || ''" @input="psSetValue(name, $event)" :data-autofocus="name === psPrompts.variables()[0] ? '' : null"></textarea>
+  </div>
+  <span class="k-label">Your prompt</span>
+  <div class="k-filled" aria-live="polite"><template :for="part in psPrompts.filledParts()"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
+  <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px">
+    <button type="button" class="k-btn" @click="psPrompts.useOpen.set(false)">Done</button>
+    <button type="button" class="k-btn k-btn-primary" @click="psPrompts.copyFilled()"><i class="k-ico" :class="psPrompts.copied() ? 'i-hugeicons-tick-02' : 'i-hugeicons-copy-01'" aria-hidden="true"></i><span :text="psPrompts.copied() ? 'Copied' : 'Copy'"></span></button>
+  </div>
+</Sheet>
+
+<!-- Version history -->
+<Sheet :open="psPrompts.versionsOpen()" title="Version history" :drawer="true" @close="psPrompts.versionsOpen.set(false)">
+  <p class="k-sub" :if="!psPrompts.versions().length" style="margin: 0">Loading the history.</p>
+  <div class="k-version" :for="version in psPrompts.versions()" :key="version.id">
+    <div style="display: flex; align-items: center; gap: 8px">
+      <strong :text="'Version ' + version.version"></strong>
+      <span class="k-chip k-chip-accent" :if="psCurrent(version)">Current</span>
+      <span class="k-sub" style="margin-left: auto" :text="safe((version.author || 'Someone') + ', ' + psVersionDate(version))"></span>
+    </div>
+    <div style="font-weight: 600; margin-top: 6px" :text="safe(version.title)"></div>
+    <pre :text="safe(version.body)"></pre>
+    <button type="button" class="k-btn" :if="psPrompts.canEdit() && !psCurrent(version)" style="margin-top: 8px" @click="psPrompts.restore(version)">Restore this version</button>
+  </div>
+</Sheet>
+
+<!-- Share -->
+<Sheet :open="psPrompts.shareOpen()" title="Share library" @close="psPrompts.shareOpen.set(false)">
+  <form @submit="psSend($event)" style="display: flex; gap: 8px; flex-wrap: wrap">
+    <label class="sr-only" for="ps-email">Email address</label>
+    <input id="ps-email" class="k-input" style="flex: 1; min-width: 180px" type="email" autocomplete="off" x-model="psInvite" placeholder="Invite by email" data-autofocus>
+    <label class="sr-only" for="ps-role">Role</label>
+    <select id="ps-role" class="k-select" style="width: auto" x-model="psRole"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
+    <button type="submit" class="k-btn k-btn-primary" :disabled="psPrompts.sharing()">Invite</button>
+  </form>
+
+  <h3 class="k-section" style="padding-left: 0">People with access</h3>
+  <p class="k-sub" :if="!psPrompts.people().length" style="margin: 0">Only you can see this library.</p>
+  <div class="k-person" :for="person in psPrompts.people()" :key="person.id">
+    <span class="k-avatar" aria-hidden="true" :text="initials(psWho(person))"></span>
+    <span class="k-grow"><span class="k-name" style="display: block" :text="psWho(person)"></span><span class="k-sub" :text="person.accepted ? safe(person.email) : 'Invited, not signed up yet'"></span></span>
+    <label class="sr-only" :for="'ps-r-' + person.id" :text="'Role for ' + psWho(person)"></label>
+    <select :id="'ps-r-' + person.id" class="k-select" style="width: auto; min-height: 36px" :value="person.role" @change="psRoleChange(person, $event)"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
+    <button type="button" class="k-icon-btn" :aria-label="'Remove ' + psWho(person)" @click="psPrompts.uninvite(person)"><i class="k-ico i-hugeicons-cancel-01" aria-hidden="true"></i></button>
+  </div>
+
+  <h3 class="k-section" style="padding-left: 0">Public link</h3>
+  <div class="k-person">
+    <span class="k-grow"><span class="k-name" style="display: block" id="ps-link-label">Anyone with the link can view</span><span class="k-sub">Read-only. No account needed.</span></span>
+    <button type="button" class="k-switch" role="switch" aria-labelledby="ps-link-label" :aria-checked="psPrompts.link() ? 'true' : 'false'" @click="psPrompts.setLink(!psPrompts.link())"></button>
+  </div>
+  <div :if="psPrompts.link()" style="display: flex; gap: 8px; margin-top: 8px">
+    <label class="sr-only" for="ps-url">Public link</label>
+    <input id="ps-url" class="k-input" type="text" readonly :value="psPrompts.linkUrl()" @focus="$event.target.select()">
+    <button type="button" class="k-btn" @click="psPrompts.copyLink()"><i class="k-ico i-hugeicons-copy-01" aria-hidden="true"></i>Copy</button>
+  </div>
+</Sheet>

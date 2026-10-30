@@ -1,0 +1,98 @@
+<script client>
+  import { safe } from '../functions/kept/safe'
+  import { segments } from '../functions/kept/promptview'
+  import { parseTagInput } from '../functions/kept/todos'
+
+  const peWs = useStore('workspace')
+  const pePrompts = useStore('prompts')
+  const peDraft = pePrompts.draft
+  const peTagText = state('')
+  const peReadOnly = derived(() => !pePrompts.canEdit())
+  const peParts = derived(() => (peDraft() ? segments(peDraft().body) : []))
+  const peVariables = pePrompts.variables
+  const peSelected = pePrompts.selected
+  const peStatus = derived(() => (pePrompts.saving() ? 'Saving' : pePrompts.dirty() ? 'Unsaved changes' : ''))
+
+  let peLast = 0
+  effect(() => {
+    const d = peDraft()
+    if (d && d.id !== peLast) { peLast = d.id; peTagText.set('') }
+    if (!d) peLast = 0
+  })
+
+  // Built from pieces: a literal pair of braces in a template attribute is read as a mustache.
+  const peChip = (name) => safe('{' + '{' + name + '}' + '}')
+  const peField = (name) => (event) => pePrompts.change({ [name]: event.target.value })
+  function peAddTags(event) {
+    event.preventDefault()
+    const next = parseTagInput(peTagText(), peDraft().tags)
+    peTagText.set('')
+    if (next.length !== peDraft().tags.length) pePrompts.change({ tags: next })
+  }
+  function peDropTag(tag) { pePrompts.change({ tags: peDraft().tags.filter(t => t !== tag) }) }
+  function peAskDelete() {
+    const id = peDraft().id
+    peWs.confirm('Delete this prompt?', 'Its history goes with it.', 'Delete prompt', () => pePrompts.remove(id))
+  }
+</script>
+
+<section class="k-pane k-detail" aria-label="Prompt">
+  <EmptyState :if="!peDraft()" icon="i-hugeicons-sparkles" text="Select a prompt, or add a new one." />
+
+  <div :if="peDraft()" class="k-pane" style="flex: 1">
+    <div class="k-toolbar">
+      <button type="button" class="k-icon-btn k-back k-back-detail" aria-label="Back to prompts" @click="pePrompts.close()"><i class="k-ico i-hugeicons-arrow-left-01" aria-hidden="true"></i></button>
+      <button type="button" class="k-btn k-btn-primary" @click="pePrompts.startUse()"><i class="k-ico i-hugeicons-magic-wand-01" aria-hidden="true"></i>Use</button>
+      <button type="button" class="k-icon-btn" aria-label="Version history" title="History" @click="pePrompts.showVersions()"><i class="k-ico i-hugeicons-history" aria-hidden="true"></i></button>
+      <button type="button" class="k-icon-btn" :aria-pressed="peDraft().favorite ? 'true' : 'false'" :aria-label="peDraft().favorite ? 'Remove from favorites' : 'Add to favorites'" :disabled="peReadOnly()" @click="pePrompts.toggleFavorite(peDraft().id)"><i class="k-ico i-hugeicons-favourite" aria-hidden="true"></i></button>
+      <span style="flex: 1"></span>
+      <span class="k-sub" aria-live="polite" :text="peStatus()"></span>
+      <button type="button" class="k-btn" :if="!peReadOnly()" :disabled="!pePrompts.dirty() || pePrompts.saving()" title="Save (Cmd+S)" @click="pePrompts.save()">Save</button>
+      <MoreMenu :if="!peReadOnly()" label="Prompt options">
+        <button type="button" role="menuitem" class="is-danger" @click="peAskDelete()"><i class="k-ico i-hugeicons-delete-02" aria-hidden="true"></i>Delete prompt</button>
+      </MoreMenu>
+    </div>
+
+    <div class="k-scroll">
+      <div class="k-detail-body" style="padding-top: 18px">
+        <label class="sr-only" for="pe-title">Title</label>
+        <input id="pe-title" class="k-title-input" type="text" :value="peDraft().title" placeholder="Title" :readonly="peReadOnly()" @input="peField('title')($event)">
+        <label class="sr-only" for="pe-desc">Description</label>
+        <input id="pe-desc" class="k-bare" type="text" :value="peDraft().description" placeholder="Short description" :readonly="peReadOnly()" @input="peField('description')($event)" style="color: var(--text-2)">
+
+        <div class="k-field" style="margin-top: 18px">
+          <label class="k-label" for="pe-body">Prompt</label>
+          <textarea id="pe-body" class="k-textarea" :if="!peReadOnly()" style="min-height: 200px; line-height: 1.6; field-sizing: content" :value="peDraft().body" placeholder="Write the prompt. Wrap a name in double curly braces to leave a value to fill in later." @input="peField('body')($event)"></textarea>
+          <div class="k-filled" :if="peReadOnly()"><template :for="part in peParts()"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
+          <div class="k-vars" :if="peVariables().length">
+            <span class="k-sub" style="align-self: center">Variables</span>
+            <span class="k-chip-var" :for="name in peVariables()" :key="name" :text="peChip(name)"></span>
+          </div>
+        </div>
+
+        <div class="k-field" :if="!peReadOnly() && peDraft().body">
+          <span class="k-label">Preview</span>
+          <div class="k-filled"><template :for="part in peParts()"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
+        </div>
+
+        <div class="k-field">
+          <label class="k-label" for="pe-model">Model hint</label>
+          <input id="pe-model" class="k-input" type="text" list="pe-models" :value="peDraft().model" placeholder="Which model works best, for example Claude Sonnet" :readonly="peReadOnly()" @input="peField('model')($event)">
+          <datalist id="pe-models"><option value="Claude Sonnet"></option><option value="Claude Opus"></option><option value="GPT"></option><option value="Gemini"></option></datalist>
+        </div>
+
+        <div class="k-field">
+          <label class="k-label" for="pe-tags">Tags</label>
+          <div class="k-pills" style="margin-bottom: 6px">
+            <span class="k-chip k-chip-accent" :for="tag in peDraft().tags" :key="tag" style="min-height: 30px"><span :text="safe(tag)"></span>
+              <button type="button" class="k-icon-btn" :if="!peReadOnly()" style="width: 22px; height: 22px" :aria-label="safe('Remove tag ' + tag)" @click="peDropTag(tag)"><i class="k-ico i-hugeicons-cancel-01" style="width: 12px; height: 12px" aria-hidden="true"></i></button>
+            </span>
+          </div>
+          <form :if="!peReadOnly()" @submit="peAddTags($event)"><input id="pe-tags" class="k-input" type="text" x-model="peTagText" placeholder="Add a tag and press Enter"></form>
+        </div>
+
+        <p class="k-sub" :if="peSelected()" :text="'Version ' + peSelected().version + '. Used ' + peSelected().uses + (peSelected().uses === 1 ? ' time.' : ' times.')"></p>
+      </div>
+    </div>
+  </div>
+</section>

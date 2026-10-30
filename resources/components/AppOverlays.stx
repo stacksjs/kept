@@ -1,4 +1,5 @@
 <script client>
+  import { safe } from '../functions/kept/safe'
   const aoWs = useStore('workspace')
   const aoOpen = derived(() => !!aoWs.confirmation())
   const aoTitle = derived(() => (aoWs.confirmation() ? aoWs.confirmation().title : ''))
@@ -15,5 +16,5 @@
 </Sheet>
 
 <div class="k-toasts" role="status" aria-live="polite">
-  <div class="k-toast" :for="toast in aoWs.toasts()" :key="toast.id" :data-tone="toast.tone" :text="toast.text"></div>
+  <div class="k-toast" :for="toast in aoWs.toasts()" :key="toast.id" :data-tone="toast.tone" :text="safe(toast.text)"></div>
 </div>

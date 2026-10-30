@@ -110,5 +110,6 @@ useHead({ title: 'Kept' })
   <PromptList :if="section() === 'prompts'" />
   <PromptEditor :if="section() === 'prompts'" />
 </div>
+<PromptSheets :if="section() === 'prompts'" />
 <AppOverlays />
 @endsection
