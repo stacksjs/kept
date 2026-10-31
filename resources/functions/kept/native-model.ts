@@ -431,25 +431,27 @@ export function appendCheckLine(body: string): string {
 }
 
 export type NoteFormat = Format | 'title'
+export interface TextEdit { body: string, start: number, end: number }
 
 /**
- * The Format menu applied without a caret (the host does not report one): line
- * formats change the last line that has text, bold and italic add an empty pair
- * at the end to type into. Title is a top-level heading.
+ * The Format menu at the caret: line formats (Title, Heading, List, Checklist)
+ * change the caret's line, Bold and Italic wrap the selection (or insert an
+ * empty pair to type into). Returns the new text and where the caret goes.
+ * Without a caret it acts at the end of the text.
  */
-export function formatNote(body: string, kind: NoteFormat): string {
-  const trimmed = body.replace(/\s+$/, '')
-  if (kind === 'bold' || kind === 'italic') {
-    const mark = kind === 'bold' ? '**' : '*'
-    return `${trimmed}${trimmed ? ' ' : ''}${mark}${kind === 'bold' ? 'bold' : 'italic'}${mark}`
-  }
+export function formatNote(body: string, kind: NoteFormat, start = body.length, end = start): TextEdit {
+  const from = Math.max(0, Math.min(start, body.length))
+  const to = Math.max(from, Math.min(end, body.length))
   if (kind === 'title') {
-    const lines = trimmed.split('\n')
-    const index = lines.length - 1
-    lines[index] = /^#\s/.test(lines[index]!) ? lines[index]!.replace(/^#\s+/, '') : `# ${lines[index]!.replace(/^#{1,3}\s+/, '')}`
-    return lines.join('\n')
+    const lineStart = body.lastIndexOf('\n', from - 1) + 1
+    const next = body.indexOf('\n', from)
+    const lineEnd = next < 0 ? body.length : next
+    const line = body.slice(lineStart, lineEnd)
+    const titled = /^#\s/.test(line) ? line.replace(/^#\s+/, '') : `# ${line.replace(/^#{1,3}\s+/, '')}`
+    const caret = lineStart + titled.length
+    return { body: body.slice(0, lineStart) + titled + body.slice(lineEnd), start: caret, end: caret }
   }
-  return applyFormat(trimmed, trimmed.length, trimmed.length, kind).body
+  return applyFormat(body, from, to, kind)
 }
 
 const TAG = /(^|[\s(])#([A-Za-z0-9_-]{1,40})/g
@@ -552,14 +554,21 @@ export type CompletionKind = 'note' | 'prompt' | 'todo-notes'
 export const COMPLETION_DELAY = 600
 
 /**
- * The request for a completion at the end of the text (the host reports no
- * caret, so the caret is taken to be at the end, where people type). Nothing
- * is asked for an empty text, one that ends mid-word-boundary noise, or a
- * very short one.
+ * The request for a completion at the caret: the text before it and after it.
+ * Without a caret the end of the text is used. Nothing is asked when there is
+ * too little before the caret to continue.
  */
-export function completionRequest(kind: CompletionKind, text: string, context = ''): { kind: CompletionKind, context: string, before: string, after: string } | null {
-  if (text.trim().length < 12) return null
-  return { kind, context: context.slice(0, 500), before: text.slice(-4000), after: '' }
+export function completionRequest(kind: CompletionKind, text: string, context = '', caret = text.length): { kind: CompletionKind, context: string, before: string, after: string } | null {
+  const at = Math.max(0, Math.min(caret, text.length))
+  const before = text.slice(0, at)
+  if (before.trim().length < 12) return null
+  return { kind, context: context.slice(0, 500), before: before.slice(-4000), after: text.slice(at, at + 1000) }
+}
+
+/** What the ghost shows after the caret: the suggestion with the space that joins it to the word before. */
+export function ghostAt(text: string, caret: number, completion: string): string {
+  const before = text.slice(0, Math.max(0, Math.min(caret, text.length)))
+  return acceptCompletion(before, completion).slice(before.length)
 }
 
 /** Accept a completion: append it, with a space where the text and the suggestion would run together. */
@@ -567,6 +576,13 @@ export function acceptCompletion(text: string, completion: string): string {
   if (!completion) return text
   const needsSpace = /\S$/.test(text) && /^[A-Za-z0-9]/.test(completion)
   return `${text}${needsSpace ? ' ' : ''}${completion}`
+}
+
+/** Accept a completion at the caret: insert it there and put the caret after it. */
+export function acceptCompletionAt(text: string, caret: number, completion: string): TextEdit {
+  const at = Math.max(0, Math.min(caret, text.length))
+  const before = acceptCompletion(text.slice(0, at), completion)
+  return { body: before + text.slice(at), start: before.length, end: before.length }
 }
 
 /** The suggestion trimmed to what fits after a caret: one paragraph, at most 200 characters. */
@@ -616,6 +632,14 @@ export function eventText(event: unknown): string {
   const e = event as { nativeEvent?: { text?: unknown, value?: unknown }, text?: unknown, value?: unknown } | null
   const value = e?.nativeEvent?.text ?? e?.nativeEvent?.value ?? e?.text ?? e?.value
   return typeof value === 'string' ? value : ''
+}
+
+/** The caret and selection a multi-line input reported (UTF-16 offsets, which are JavaScript string indices). */
+export function eventSelection(event: unknown): { start: number, end: number } | null {
+  const e = event as { start?: unknown, end?: unknown, selection?: { start?: unknown, end?: unknown }, nativeEvent?: { selection?: { start?: unknown, end?: unknown } } } | null
+  const at = typeof e?.start === 'number' ? e : e?.selection ?? e?.nativeEvent?.selection
+  if (!at || typeof at.start !== 'number' || typeof at.end !== 'number') return null
+  return { start: at.start, end: Math.max(at.start, at.end) }
 }
 
 /** The value of a native picker, switch or sidebar event. */

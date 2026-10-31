@@ -56,6 +56,30 @@ export function nativeUrl(base: string, input: string): string {
   return `${path}?${query ? `${query}&` : ''}per_page=1000`
 }
 
+/**
+ * Requests as the native host sends them. A post made before sign-in (sign
+ * in, create account) carries a CSRF token, which `createApi` reads once and
+ * keeps. The host's cookie jar takes every CSRF cookie the server hands out
+ * (signing out rotates it), and the server only mints one for a request that
+ * has none, so after a sign-out the kept token no longer matches the cookie
+ * the jar sends and the server answers 403. The latest token any response
+ * set is remembered and used for such posts instead.
+ */
+let latestCsrf = ''
+
+async function nativeFetch(base: string, input: string, init?: RequestInit): Promise<Response> {
+  const headers = { ...(init?.headers as Record<string, string> | undefined) }
+  const method = String(init?.method ?? 'GET').toUpperCase()
+  if (method !== 'GET' && latestCsrf && headers['x-csrf-token'] && !headers.authorization) {
+    headers['x-csrf-token'] = latestCsrf
+    headers.cookie = `X-CSRF-Token=${latestCsrf}`
+  }
+  const response = await fetch(nativeUrl(base, input), { ...init, headers })
+  const minted = /X-CSRF-Token=([0-9a-f]+)/.exec(response.headers.get('set-cookie') ?? '')?.[1]
+  if (minted) latestCsrf = minted
+  return response
+}
+
 /** The API client against the server the app was built for (`craft.app.url`). */
 export function nativeApi(session: Session, onSignedOut?: () => void): KeptApi {
   const base = (nativeCraft().app.url || '').replace(/\/+$/, '')
@@ -63,7 +87,7 @@ export function nativeApi(session: Session, onSignedOut?: () => void): KeptApi {
     base,
     session,
     onSignedOut,
-    fetch: ((input: string, init?: RequestInit) => fetch(nativeUrl(base, String(input)), init)) as typeof fetch,
+    fetch: ((input: string, init?: RequestInit) => nativeFetch(base, String(input), init)) as typeof fetch,
   })
 }
 

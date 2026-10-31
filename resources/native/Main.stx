@@ -2,7 +2,7 @@
 import { today as deviceDay } from '../functions/kept/api'
 import { toggleCheckLine } from '../functions/kept/markdown'
 import { apiOrigin, desktop, keychainSession, nativeApi, nativeCraft, palette, readCache, requestCompletion, saveAccount, savedAccount, writeCache } from '../functions/kept/native-kept'
-import { acceptCompletion, appendCheckLine, checkLines, COMPLETION_DELAY, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, NEW_PROMPT_BODY, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, notesIn, parseDayField, parseNav, projectProgress, promptVariables, splitBlocks, blockHeader, quickEntry, REPEATS, resolveDay, rowMarks, shareLink, SMART_LISTS, sidebarSections, todoBlocks, toggleChecklist, whenChip } from '../functions/kept/native-model'
+import { acceptCompletionAt, checkLines, eventSelection, ghostAt, COMPLETION_DELAY, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, NEW_PROMPT_BODY, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, notesIn, parseDayField, parseNav, projectProgress, promptVariables, splitBlocks, blockHeader, quickEntry, REPEATS, resolveDay, rowMarks, shareLink, SMART_LISTS, sidebarSections, todoBlocks, whenChip } from '../functions/kept/native-model'
 import { daysLeft, normalizeNote } from '../functions/kept/notes'
 import { filterPrompts, normalizePrompt } from '../functions/kept/promptview'
 import { counts, normalizeTodo, parseTagInput, serializeChanges, whenPatch } from '../functions/kept/todos'
@@ -321,6 +321,7 @@ function openTodo(todo) {
   closeTodo()
   if (!todo) return
   todoId.set(todo.id)
+  todoSel.set({ start: 0, end: 0 })
   dTitle.set(todo.title)
   dNotes.set(todo.notes || '')
   dStart.set(todo.start_date || '')
@@ -385,7 +386,7 @@ function editTodo(name, event) {
   todoFields[name].set(eventText(event))
   clearTimeout(todoTimer)
   todoTimer = setTimeout(() => saveTodo(typedChanges()), 700)
-  if (name === 'notes') suggest('todo', 'todo-notes', dNotes(), dTitle())
+  if (name === 'notes') suggest('todo')
 }
 
 async function whenMenu(todo = selectedTodo()) {
@@ -607,6 +608,7 @@ function selectNote(note) {
   flushNote()
   noteId.set(note?.id ?? 0)
   noteBody.set(note?.body ?? '')
+  noteSel.set({ start: 0, end: 0 })
   if (ghost().field === 'note') ghost.set({ field: '', text: '' })
 }
 
@@ -616,7 +618,7 @@ function editNote(event) {
   pendingNote = { id: noteId(), body: noteBody() }
   clearTimeout(noteTimer)
   noteTimer = setTimeout(() => flushNote(), 800)
-  suggest('note', 'note', noteBody(), selectedNote()?.title ?? '')
+  suggest('note')
 }
 
 function setNoteBody(body) {
@@ -636,7 +638,7 @@ async function formatMenu() {
     { id: 'list', title: 'Bulleted List', icon: 'list.bullet' },
     { id: 'check', title: 'Checklist', icon: 'checklist' },
   ])
-  if (choice) setNoteBody(formatNote(noteBody(), choice))
+  if (choice) formatAt(choice)
 }
 
 async function newNote() {
@@ -715,6 +717,7 @@ async function noteMenu(note) {
 
 function selectPrompt(prompt) {
   promptId.set(prompt?.id ?? 0)
+  promptSel.set({ start: 0, end: 0 })
   pTitle.set(prompt?.title ?? '')
   pDesc.set(prompt?.description ?? '')
   pTags.set((prompt?.tags ?? []).join(', '))
@@ -726,7 +729,7 @@ function selectPrompt(prompt) {
 function editPrompt(name, event) {
   promptFields[name].set(eventText(event))
   pDirty.set(true)
-  if (name === 'body' && canEdit()) suggest('prompt', 'prompt', pBody(), pTitle())
+  if (name === 'body' && canEdit()) suggest('prompt')
 }
 
 async function savePrompt() {
@@ -882,19 +885,37 @@ async function promptMenu(prompt) {
   if (choice === 'delete') await deletePrompt(prompt)
 }
 
-// Inline completion: ask once typing stops, drop stale answers, show nothing on failure.
+// The caret and selection of each editor (UTF-16 offsets from the host), bound back so formatting can move it.
+const noteSel = state({ start: 0, end: 0 })
+const todoSel = state({ start: 0, end: 0 })
+const promptSel = state({ start: 0, end: 0 })
+const editors = {
+  note: { kind: 'note', text: () => noteBody(), sel: noteSel, context: () => selectedNote()?.title ?? '' },
+  todo: { kind: 'todo-notes', text: () => dNotes(), sel: todoSel, context: () => dTitle() },
+  prompt: { kind: 'prompt', text: () => pBody(), sel: promptSel, context: () => pTitle() },
+}
+
+function moveCaret(field, event) {
+  const at = eventSelection(event)
+  if (at) editors[field].sel.set(at)
+}
+
+// Inline completion: ask once typing stops, at the caret, drop stale answers, show nothing on failure.
 let ghostTimer = 0
 let ghostSeq = 0
-function suggest(field, kind, text, context) {
+function suggest(field) {
   if (ghost().text) ghost.set({ field: '', text: '' })
   clearTimeout(ghostTimer)
   const seq = ++ghostSeq
-  const request = completionRequest(kind, text, context)
-  if (!request) return
   ghostTimer = setTimeout(async () => {
+    const editor = editors[field]
+    const text = editor.text()
+    const caret = editor.sel().end
+    const request = completionRequest(editor.kind, text, editor.context(), caret)
+    if (!request) return
     const completion = await requestCompletion(session, request)
     // Shown exactly as it would be inserted, with the joining space, so the ghost reads as the next words.
-    if (seq === ghostSeq && completion) ghost.set({ field, text: acceptCompletion(text, completion).slice(text.length) })
+    if (seq === ghostSeq && completion && editor.text() === text) ghost.set({ field, text: ghostAt(text, caret, completion) })
   }, COMPLETION_DELAY)
 }
 
@@ -902,9 +923,20 @@ function acceptGhost(field, event) {
   const completion = eventText(event) || ghost().text
   ghost.set({ field: '', text: '' })
   if (!completion) return
-  if (field === 'note') setNoteBody(acceptCompletion(noteBody(), completion))
-  if (field === 'prompt') { pBody.set(acceptCompletion(pBody(), completion)); pDirty.set(true) }
-  if (field === 'todo') { dNotes.set(acceptCompletion(dNotes(), completion)); saveTodo(typedChanges()) }
+  const editor = editors[field]
+  const edit = acceptCompletionAt(editor.text(), editor.sel().end, completion.replace(/^\s+/, ''))
+  editor.sel.set({ start: edit.start, end: edit.end })
+  if (field === 'note') setNoteBody(edit.body)
+  if (field === 'prompt') { pBody.set(edit.body); pDirty.set(true) }
+  if (field === 'todo') { dNotes.set(edit.body); saveTodo(typedChanges()) }
+}
+
+/** Format the open note at the caret and put the caret where the format leaves it. */
+function formatAt(kind) {
+  if (!selectedNote() || inTrash()) return
+  const edit = formatNote(noteBody(), kind, noteSel().start, noteSel().end)
+  noteSel.set({ start: edit.start, end: edit.end })
+  setNoteBody(edit.body)
 }
 
 const ghostFor = field => (ghost().field === field ? ghost().text : '')
@@ -945,7 +977,10 @@ function command(id) {
   else if (id === 'save') { if (section === 'prompts') savePrompt(); else if (section === 'notes') saveNote(); else flushTodo() }
   else if (id === 'complete' && section === 'todos') toggleTodo(selectedTodo())
   else if (id === 'close-todo') closeTodo()
-  else if (id === 'toggle-check' && section === 'notes' && selectedNote()) setNoteBody(toggleChecklist(noteBody()))
+  else if (id === 'toggle-check' && section === 'notes') formatAt('check')
+  else if (id === 'bold' && section === 'notes') formatAt('bold')
+  else if (id === 'italic' && section === 'notes') formatAt('italic')
+  else if (id === 'heading' && section === 'notes') formatAt('heading')
   else if (id === 'format' && section === 'notes') formatMenu()
   else if (id === 'pin' && section === 'notes') togglePin()
   else if (id === 'use-prompt' && section === 'prompts') openUse()
@@ -988,7 +1023,10 @@ onMount(async () => {
       { id: 'close-todo', label: 'Close To-Do' },
       { separator: true },
       { id: 'format', label: 'Format', shortcut: 'shift+cmd+t' },
-      { id: 'toggle-check', label: 'Toggle Checklist', shortcut: 'shift+cmd+l' },
+      { id: 'toggle-check', label: 'Checklist', shortcut: 'shift+cmd+l' },
+      { id: 'bold', label: 'Bold', shortcut: 'cmd+b' },
+      { id: 'italic', label: 'Italic', shortcut: 'cmd+i' },
+      { id: 'heading', label: 'Heading', shortcut: 'shift+cmd+h' },
       { id: 'pin', label: 'Pin Note' },
       { separator: true },
       { id: 'use-prompt', label: 'Use Prompt', shortcut: 'cmd+u' },
@@ -1006,7 +1044,7 @@ onMount(async () => {
   <KeptMacSignIn :if="!signedIn()" class="flex-1" :error="authError()" :busy="authBusy()" :origin="apiOrigin()" :epoch="signOuts()" @submit="signInWith($event)" />
 
   <View :if="signedIn()" class="flex-col shrink-0 w-[240px] border-r" style="border-color: separator" material="sidebar" testID="sidebar-pane">
-    <NativeSidebar class="flex-1" :sections="sections()" :selected="selectedNav()" @change="pickNav(eventValue($event))" testID="sidebar" />
+    <NativeSidebar class="flex-1" rowHeight="24" labelFontSize="15" :sections="sections()" :selected="selectedNav()" @change="pickNav(eventValue($event))" testID="sidebar" />
     <View class="flex-row items-center px-[12px] h-[40px] border-t" style="border-color: separator">
       <Button title="New List" symbol="plus" variant="ghost" class="text-[13px]" style="color: secondaryLabel" testID="new-list" @click="newList()" />
       <View class="flex-1" />
@@ -1065,7 +1103,7 @@ onMount(async () => {
             </Pressable>
           </View>
         </View>
-        <View :if="current()" class="flex-col gap-[4px] my-[10px] pb-[8px] pt-[10px] px-[12px] border rounded-[12px]" :style="{backgroundColor: colors().card, borderColor: colors().hairline}" testID="todo-editor">
+        <View :if="current()" class="flex-col gap-[4px] my-[10px] pb-[8px] pt-[10px] px-[12px] rounded-[12px] shadow-md" :style="{backgroundColor: colors().card, borderWidth: colors().dark ? 1 : 0, borderColor: colors().hairline}" testID="todo-editor">
           <View class="flex-row gap-[9px] items-center">
             <Pressable class="items-center justify-center shrink-0 h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: current()?.completed_at ? colors().accent : colors().checkbox, backgroundColor: current()?.completed_at ? colors().accent : 'transparent'}" testID="detail-check" @click="toggleTodo(current())">
               <Icon :if="current()?.completed_at" symbol="checkmark" class="h-[9px] w-[9px]" style="color: #ffffff" />
@@ -1073,7 +1111,7 @@ onMount(async () => {
             <View class="flex-1"><TextInput class="h-[24px] text-[15px]" :bordered="false" :value="dTitle()" placeholder="New To-Do" @input="editTodo('title', $event)" @submit="closeTodo()" @blur="flushTodo()" testID="detail-title" /></View>
           </View>
           <View class="pl-[14px]">
-            <TextInput class="text-[14px]" :style="{height: notesHeight()}" :multiline="true" :bordered="false" :value="dNotes()" placeholder="Notes" :ghostText="ghostFor('todo')" @input="editTodo('notes', $event)" @blur="flushTodo()" @accept-completion="acceptGhost('todo', $event)" testID="detail-notes" />
+            <TextInput class="text-[14px]" :style="{height: notesHeight()}" :multiline="true" :bordered="false" :value="dNotes()" placeholder="Notes" :ghostText="ghostFor('todo')" markdown :selection="todoSel()" @selection-change="moveCaret('todo', $event)" @input="editTodo('notes', $event)" @blur="flushTodo()" @accept-completion="acceptGhost('todo', $event)" testID="detail-notes" />
           </View>
           <View :if="showChecklist() || (current()?.checklist || []).length" class="flex-col pl-[23px] pr-[4px] pt-[2px]">
             <View :for="item in (current()?.checklist || [])" :key="item.id" class="flex-row gap-[8px] items-center h-[26px] border-b" :style="{borderColor: colors().hairline}">
@@ -1202,7 +1240,7 @@ onMount(async () => {
   <View :if="signedIn() && nav().section === 'notes'" class="flex-1 flex-col min-w-0" :style="{backgroundColor: colors().list}" testID="note-editor-pane">
     <View class="flex-row gap-[4px] items-center px-[14px] h-[44px] border-b" :style="{borderColor: colors().hairline}">
       <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="Format" symbol="textformat" :disabled="!selectedNote()" testID="note-format" @click="formatMenu()" />
-      <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="Checklist" symbol="checklist" :disabled="!selectedNote()" testID="note-checklist" @click="setNoteBody(appendCheckLine(noteBody()))" />
+      <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="Checklist" symbol="checklist" :disabled="!selectedNote()" testID="note-checklist" @click="formatAt('check')" />
       <ToolbarButton style="color: #8e8e93" :if="!inTrash()" :label="selectedNote()?.pinned ? 'Unpin' : 'Pin'" :symbol="selectedNote()?.pinned ? 'pin.slash' : 'pin'" :disabled="!selectedNote()" testID="note-pin" @click="togglePin()" />
       <View class="flex-1" />
       <Text :if="selectedNote()" class="text-[12px]" style="color: secondaryLabel" :text="inTrash() ? 'In Recently Deleted' : 'Edited ' + noteStamp(selectedNote().updated_at)" />
@@ -1212,7 +1250,7 @@ onMount(async () => {
       <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="New Note" symbol="square.and.pencil" testID="note-new" @click="newNote()" />
     </View>
     <View :if="selectedNote()" class="flex-1 flex-col pt-[18px] px-[28px]">
-      <TextInput class="flex-1 text-[15px]" :multiline="true" :bordered="false" :disabled="inTrash()" :value="noteBody()" placeholder="Start writing" :ghostText="ghostFor('note')" @input="editNote($event)" @blur="flushNote()" @accept-completion="acceptGhost('note', $event)" testID="note-editor" />
+      <TextInput class="flex-1 text-[15px]" :multiline="true" :bordered="false" :disabled="inTrash()" :value="noteBody()" placeholder="Start writing" :ghostText="ghostFor('note')" markdown :selection="noteSel()" @selection-change="moveCaret('note', $event)" @input="editNote($event)" @blur="flushNote()" @accept-completion="acceptGhost('note', $event)" testID="note-editor" />
     </View>
     <View :if="selectedNote() && noteChecks().length && !inTrash()" class="flex-col gap-[1px] px-[28px] py-[10px] border-t" :style="{borderColor: colors().hairline}" testID="note-checks">
       <Pressable :for="check in noteChecks()" :key="check.line" class="flex-row gap-[8px] items-center h-[24px]" :testID="'note-check-' + check.line" @click="setNoteBody(toggleCheckLine(noteBody(), check.line))">
@@ -1262,7 +1300,7 @@ onMount(async () => {
       <TextInput class="h-[22px] text-[13px]" :bordered="false" :value="pDesc()" :disabled="!canEdit()" placeholder="What it is for" @input="editPrompt('description', $event)" @submit="savePrompt()" testID="prompt-description" />
       <TextInput class="h-[22px] text-[13px]" :bordered="false" :value="pTags()" :disabled="!canEdit()" placeholder="Tags, separated by commas" @input="editPrompt('tags', $event)" @submit="savePrompt()" testID="prompt-tags" />
       <View class="h-[1px]" :style="{backgroundColor: colors().hairline}" />
-      <TextInput class="flex-1 text-[14px]" :multiline="true" :bordered="false" :value="pBody()" :disabled="!canEdit()" placeholder="Write the prompt. Put a variable in double braces where details go." :ghostText="ghostFor('prompt')" @input="editPrompt('body', $event)" @accept-completion="acceptGhost('prompt', $event)" testID="prompt-body" />
+      <TextInput class="flex-1 text-[14px]" :multiline="true" :bordered="false" :value="pBody()" :disabled="!canEdit()" placeholder="Write the prompt. Put a variable in double braces where details go." :ghostText="ghostFor('prompt')" markdown :selection="promptSel()" @selection-change="moveCaret('prompt', $event)" @input="editPrompt('body', $event)" @accept-completion="acceptGhost('prompt', $event)" testID="prompt-body" />
       <View class="flex-row gap-[6px] items-center" testID="prompt-variables">
         <Text class="text-[12px]" style="color: secondaryLabel" :text="variables().length ? 'Variables' : 'No variables yet. Wrap a name in double braces to add one.'" />
         <View :for="name in variables()" :key="name" class="justify-center px-[7px] h-[20px] rounded-[6px]" :style="{backgroundColor: colors().variableFill}">

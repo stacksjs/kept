@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { acceptCompletion, appendCheckLine, cacheKey, capForCache, checkLines, cleanCompletion, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, noteTagList, notesIn, parseDayField, parseNav, progressSymbol, projectProgress, splitBlocks, blockHeader, promptVariables, quickEntry, resolveDay, rowMarks, shareLink, sidebarSections, todoBlocks, toggleChecklist, unfilled, whenChip } from '../../resources/functions/kept/native-model'
+import { acceptCompletion, acceptCompletionAt, appendCheckLine, ghostAt, cacheKey, capForCache, checkLines, cleanCompletion, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, noteTagList, notesIn, parseDayField, parseNav, progressSymbol, projectProgress, splitBlocks, blockHeader, promptVariables, quickEntry, resolveDay, rowMarks, shareLink, sidebarSections, todoBlocks, toggleChecklist, unfilled, whenChip } from '../../resources/functions/kept/native-model'
 import type { LibraryList, Note, SidebarData, Todo } from '../../resources/functions/kept/types'
 
 const today = '2026-10-30'
@@ -249,27 +249,41 @@ describe('native notes', () => {
     expect(noteSnippet({ ...notes[0]!, snippet: '' })).toBe('No additional text')
   })
 
-  it('formats without a caret', () => {
-    expect(formatNote('Plan\nBuy milk', 'check')).toBe('Plan\n- [ ] Buy milk')
-    expect(formatNote('Plan\nBuy milk', 'list')).toBe('Plan\n- Buy milk')
-    expect(formatNote('Plan\nShopping', 'heading')).toBe('Plan\n# Shopping')
-    expect(formatNote('Plan', 'title')).toBe('# Plan')
-    expect(formatNote('# Plan', 'title')).toBe('Plan')
-    expect(formatNote('Plan', 'bold')).toBe('Plan **bold**')
-    expect(formatNote('', 'italic')).toBe('*italic*')
+  it('formats at the end without a caret', () => {
+    expect(formatNote('Plan\nBuy milk', 'check').body).toBe('Plan\n- [ ] Buy milk')
+    expect(formatNote('Plan\nBuy milk', 'list').body).toBe('Plan\n- Buy milk')
+    expect(formatNote('Plan\nShopping', 'heading').body).toBe('Plan\n# Shopping')
+    expect(formatNote('Plan', 'title').body).toBe('# Plan')
+    expect(formatNote('# Plan', 'title').body).toBe('Plan')
+  })
+
+  it('formats at the caret and says where the caret goes', () => {
+    const body = 'Plan\nBuy milk\nCall Ana'
+    expect(formatNote(body, 'check', 6)).toEqual({ body: 'Plan\n- [ ] Buy milk\nCall Ana', start: 19, end: 19 })
+    expect(formatNote(body, 'title', 1).body).toBe('# Plan\nBuy milk\nCall Ana')
+    const bold = formatNote(body, 'bold', 9, 13)
+    expect(bold.body).toBe('Plan\nBuy **milk**\nCall Ana')
+    expect(bold.body.slice(bold.start, bold.end)).toBe('milk')
+    const empty = formatNote('Hi ', 'italic', 3)
+    expect(empty.body).toBe('Hi *italic*')
+    expect(empty.body.slice(empty.start, empty.end)).toBe('italic')
   })
 })
 
 describe('native completions', () => {
-  it('asks only once there is something to continue', () => {
+  it('asks with the text around the caret', () => {
     expect(completionRequest('note', 'short')).toBeNull()
     expect(completionRequest('note', 'A long enough sentence', 'Trip')).toEqual({ kind: 'note', context: 'Trip', before: 'A long enough sentence', after: '' })
+    expect(completionRequest('note', 'Pack the tent and the stove', '', 13)).toEqual({ kind: 'note', context: '', before: 'Pack the tent', after: ' and the stove' })
+    expect(completionRequest('note', 'Pack the tent', '', 3)).toBeNull()
   })
 
-  it('joins and trims a suggestion', () => {
+  it('shows, joins and inserts a suggestion at the caret', () => {
     expect(acceptCompletion('Pack the', 'blue bag')).toBe('Pack the blue bag')
     expect(acceptCompletion('Pack the ', 'blue bag')).toBe('Pack the blue bag')
     expect(acceptCompletion('End.', '')).toBe('End.')
+    expect(ghostAt('Pack the\nnext', 8, 'blue bag')).toBe(' blue bag')
+    expect(acceptCompletionAt('Pack the\nnext', 8, 'blue bag')).toEqual({ body: 'Pack the blue bag\nnext', start: 17, end: 17 })
     expect(cleanCompletion('one paragraph\n\nanother')).toBe('one paragraph')
     expect(cleanCompletion(42)).toBe('')
     expect(cleanCompletion('x'.repeat(300)).length).toBe(200)
