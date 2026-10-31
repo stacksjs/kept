@@ -1,12 +1,11 @@
 <script client>
-  import { safe } from '../functions/kept/safe'
   import { noteDate } from '../functions/kept/format'
   import { initials } from '../functions/kept/format'
 
   const psPrompts = useStore('prompts')
   const psInvite = state('')
   const psRole = state('viewer')
-  const psName = derived(() => (psPrompts.draft() ? safe(psPrompts.draft().title) : ''))
+  const psName = derived(() => (psPrompts.draft() ? psPrompts.draft().title : ''))
   const psVersionDate = (version) => noteDate(version.created_at)
   const psCurrent = (version) => !!psPrompts.selected() && version.version === psPrompts.selected().version
 
@@ -15,7 +14,7 @@
     if (await psPrompts.invite(psInvite(), psRole())) psInvite.set('')
   }
   function psRoleChange(person, event) { psPrompts.changeRole(person, event.target.value) }
-  function psWho(person) { return safe(person.name || person.email) }
+  function psWho(person) { return person.name || person.email }
   function psSetValue(name, event) { psPrompts.setValue(name, event.target.value) }
 </script>
 
@@ -23,11 +22,11 @@
 <Sheet :open="psPrompts.useOpen()" :title="'Use: ' + psName()" @close="psPrompts.useOpen.set(false)">
   <p class="k-sub" :if="psPrompts.variables().length" style="margin: 0 0 14px">Fill in each value. The prompt updates as you type.</p>
   <div class="k-field" :for="name in psPrompts.variables()" :key="name">
-    <label class="k-label" :for="'ps-var-' + name" :text="safe(name)"></label>
+    <label class="k-label" :for="'ps-var-' + name" :text="name"></label>
     <textarea :id="'ps-var-' + name" class="k-textarea" rows="1" style="min-height: 44px; field-sizing: content" :value="psPrompts.values()[name] || ''" @input="psSetValue(name, $event)" :data-autofocus="name === psPrompts.variables()[0] ? '' : null"></textarea>
   </div>
   <span class="k-label">Your prompt</span>
-  <div class="k-filled" aria-live="polite"><template :for="part in psPrompts.filledParts()"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
+  <div class="k-filled" aria-live="polite"><template :for="part in psPrompts.filledParts()"><mark :if="part.variable" :text="part.text"></mark><span :if="!part.variable" :text="part.text"></span></template></div>
   <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px">
     <button type="button" class="k-btn" @click="psPrompts.useOpen.set(false)">Done</button>
     <button type="button" class="k-btn k-btn-primary" @click="psPrompts.copyFilled()"><i class="k-ico" :class="psPrompts.copied() ? 'i-hugeicons-tick-02' : 'i-hugeicons-copy-01'" aria-hidden="true"></i><span :text="psPrompts.copied() ? 'Copied' : 'Copy'"></span></button>
@@ -41,10 +40,10 @@
     <div style="display: flex; align-items: center; gap: 8px">
       <strong :text="'Version ' + version.version"></strong>
       <span class="k-chip k-chip-accent" :if="psCurrent(version)">Current</span>
-      <span class="k-sub" style="margin-left: auto" :text="safe((version.author || 'Someone') + ', ' + psVersionDate(version))"></span>
+      <span class="k-sub" style="margin-left: auto" :text="(version.author || 'Someone') + ', ' + psVersionDate(version)"></span>
     </div>
-    <div style="font-weight: 600; margin-top: 6px" :text="safe(version.title)"></div>
-    <pre :text="safe(version.body)"></pre>
+    <div style="font-weight: 600; margin-top: 6px" :text="version.title"></div>
+    <pre :text="version.body"></pre>
     <button type="button" class="k-btn" :if="psPrompts.canEdit() && !psCurrent(version)" style="margin-top: 8px" @click="psPrompts.restore(version)">Restore this version</button>
   </div>
 </Sheet>
@@ -63,7 +62,7 @@
   <p class="k-sub" :if="!psPrompts.people().length" style="margin: 0">Only you can see this library.</p>
   <div class="k-person" :for="person in psPrompts.people()" :key="person.id">
     <span class="k-avatar" aria-hidden="true" :text="initials(psWho(person))"></span>
-    <span class="k-grow"><span class="k-name" style="display: block" :text="psWho(person)"></span><span class="k-sub" :text="person.accepted ? safe(person.email) : 'Invited, not signed up yet'"></span></span>
+    <span class="k-grow"><span class="k-name" style="display: block" :text="psWho(person)"></span><span class="k-sub" :text="person.accepted ? person.email : 'Invited, not signed up yet'"></span></span>
     <label class="sr-only" :for="'ps-r-' + person.id" :text="'Role for ' + psWho(person)"></label>
     <select :id="'ps-r-' + person.id" class="k-select" style="width: auto; min-height: 36px" :value="person.role" @change="psRoleChange(person, $event)"><option value="viewer">Viewer</option><option value="editor">Editor</option></select>
     <button type="button" class="k-icon-btn" :aria-label="'Remove ' + psWho(person)" @click="psPrompts.uninvite(person)"><i class="i-hugeicons-cancel-01 k-ico" aria-hidden="true"></i></button>

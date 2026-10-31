@@ -3,13 +3,12 @@ interface GhostTextProps { variant?: 'note' | 'prompt' }
 const { variant = 'note' } = defineProps<GhostTextProps>()
 </script>
 <script client>
-  import { safe } from '../functions/kept/safe'
 
   // Drop this in a positioned wrapper behind a textarea: <div class="k-ghost-wrap"><GhostText /><textarea class="k-ghost-ta">
   const gtGhost = useStore('ghost')
   const gtVariant = useReactiveProp('variant', 'note')
-  const gtText = derived(() => safe(gtGhost.text()))
-  const gtBefore = derived(() => safe(gtGhost.before()))
+  const gtText = derived(() => gtGhost.text())
+  const gtBefore = derived(() => gtGhost.before())
   const gtShift = derived(() => 'translateY(-' + gtGhost.scrollTop() + 'px)')
 </script>
 

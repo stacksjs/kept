@@ -5,7 +5,6 @@ const { group = null, projectNames = true } = defineProps<TodoGroupProps>()
 <script client>
   import { focusField } from '../functions/kept/client'
   import { deadlineLabel, deadlineState } from '../functions/kept/format'
-  import { safe } from '../functions/kept/safe'
 
   const tgGroup = useReactiveProp('group', null)
   const tgNames = useReactiveProp('projectNames', true)
@@ -49,11 +48,11 @@ const { group = null, projectNames = true } = defineProps<TodoGroupProps>()
     const chips = []
     if (todo.deadline && !todo.completed_at) chips.push({ key: 'due', icon: 'i-hugeicons-flag-02', text: tgDeadline(todo), tone: tgDeadlineState(todo) === 'overdue' ? 'k-chip-danger' : tgDeadlineState(todo) === 'today' ? 'k-chip-accent' : '' })
     const project = tgProject(todo)
-    if (project) chips.push({ key: 'project', icon: 'i-hugeicons-folder-02', text: safe(project), tone: '' })
+    if (project) chips.push({ key: 'project', icon: 'i-hugeicons-folder-02', text: project, tone: '' })
     const checks = tgChecks(todo)
     if (checks) chips.push({ key: 'checks', icon: 'i-hugeicons-check-list', text: checks, tone: '' })
     if (todo.repeat !== 'none') chips.push({ key: 'repeat', icon: 'i-hugeicons-repeat', text: todo.repeat, tone: '' })
-    for (const tag of todo.tags) chips.push({ key: 'tag:' + tag, icon: 'i-hugeicons-tag-01', text: safe(tag), tone: '' })
+    for (const tag of todo.tags) chips.push({ key: 'tag:' + tag, icon: 'i-hugeicons-tag-01', text: tag, tone: '' })
     return chips
   }
 
@@ -108,7 +107,7 @@ const { group = null, projectNames = true } = defineProps<TodoGroupProps>()
   <div class="k-proj-head" :if="tgKind() === 'project' || tgKind() === 'area'">
     <ProgressRing :if="tgKind() === 'project'" :value="tgTasks.ring(tgGroup().ref)" :size="20" />
     <i class="i-hugeicons-folder-02 k-ico" :if="tgKind() === 'area'" style="color: var(--text-3)" aria-hidden="true"></i>
-    <button type="button" :text="safe(tgLabel())" @click="tgOpenProject()"></button>
+    <button type="button" :text="tgLabel()" @click="tgOpenProject()"></button>
   </div>
   <h2 class="k-section" :if="tgKind() === 'plain' && tgLabel()">
     <i class="i-f7-moon-fill k-gl k-gl-evening" :if="tgBucket() === 'evening'" style="width: 16px; height: 16px" aria-hidden="true"></i>
@@ -120,11 +119,11 @@ const { group = null, projectNames = true } = defineProps<TodoGroupProps>()
     <template :for="todo in tgItems()" :key="todo.id">
       <li class="k-row" :if="tgOpenId() !== todo.id" role="listitem" draggable="true"
           :data-state="tgRowState(todo)" @click="tgOpen(todo)" @dragstart="tgDragStart($event, todo)" @dragover="tgDragOver($event, todo)" @drop="tgDropOn($event, todo)" @dragend="tgDragEnd()">
-        <button type="button" class="k-check" role="checkbox" :aria-checked="tgIsDone(todo) ? 'true' : 'false'" :aria-label="safe((tgIsDone(todo) ? 'Mark not done: ' : 'Complete: ') + todo.title)" @click="tgToggle($event, todo)">
+        <button type="button" class="k-check" role="checkbox" :aria-checked="tgIsDone(todo) ? 'true' : 'false'" :aria-label="(tgIsDone(todo) ? 'Mark not done: ' : 'Complete: ') + todo.title" @click="tgToggle($event, todo)">
           <i class="i-hugeicons-tick-02 k-tick" aria-hidden="true"></i>
         </button>
         <div class="k-row-body">
-          <button type="button" class="k-row-title"><i class="i-f7-star-fill k-ico k-today-star" :if="tgInToday(todo)" aria-label="In Today"></i><span :text="safe(todo.title || 'New to-do')"></span><i class="i-hugeicons-file-01 k-ico k-note-icon" :if="todo.notes" aria-hidden="true"></i></button>
+          <button type="button" class="k-row-title"><i class="i-f7-star-fill k-ico k-today-star" :if="tgInToday(todo)" aria-label="In Today"></i><span :text="todo.title || 'New to-do'"></span><i class="i-hugeicons-file-01 k-ico k-note-icon" :if="todo.notes" aria-hidden="true"></i></button>
           <div class="k-meta" :if="tgChips(todo).length"><span class="k-chip" :for="chip in tgChips(todo)" :key="chip.key" :class="chip.tone"><i class="k-ico" :class="chip.icon" style="width: 13px; height: 13px" aria-hidden="true"></i><span :text="chip.text"></span></span></div>
         </div>
       </li>

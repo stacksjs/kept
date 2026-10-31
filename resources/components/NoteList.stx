@@ -2,7 +2,6 @@
   import { focusField } from '../functions/kept/client'
   import { noteDate } from '../functions/kept/format'
   import { daysLeft, NOTE_SORTS } from '../functions/kept/notes'
-  import { safe } from '../functions/kept/safe'
 
   const nlWs = useStore('workspace')
   const nlNotes = useStore('notes')
@@ -34,7 +33,7 @@
   effect(() => { nlNotes.folder(); nlRenaming.set(false) })
 
   const nlDate = (note) => (nlFolder() === 'trash' ? daysLeft(note.deleted_at, nlNotes.trashDays()) + ' days left' : noteDate(note.updated_at))
-  const nlPreview = (note) => safe(nlNotes.snippetFor(note) || 'No additional text')
+  const nlPreview = (note) => nlNotes.snippetFor(note) || 'No additional text'
   function nlScroll(event) {
     const box = event.target
     if (nlNotes.hasMore() && box.scrollHeight - box.scrollTop - box.clientHeight < 400) nlNotes.more()
@@ -64,7 +63,7 @@
   <header class="k-head">
     <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="nlWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
     <div style="flex: 1; min-width: 0">
-      <h1 class="k-title" :if="!nlRenaming()" :text="safe(nlTitle())"></h1>
+      <h1 class="k-title" :if="!nlRenaming()" :text="nlTitle()"></h1>
       <input class="k-title-input" :if="nlRenaming()" x-model="nlName" aria-label="Folder name" data-focus="rename" @blur="nlCommitRename()" @keydown="nlRenameKey($event)">
       <p class="k-sub" style="margin: 2px 0 0" :text="nlCount() + (nlCount() === 1 ? ' note' : ' notes')"></p>
     </div>
@@ -92,11 +91,11 @@
       <ul class="k-rows" role="list">
         <li :for="note in section.notes" :key="note.id" role="listitem" class="k-note-row">
           <button type="button" class="k-note" :aria-current="nlOpenId() === note.id ? 'true' : 'false'" @click="nlNotes.open(note.id)">
-            <span class="k-note-title" :text="safe(note.title || 'New note')"></span>
+            <span class="k-note-title" :text="note.title || 'New note'"></span>
             <span class="k-note-line">
               <span class="k-sub" :text="nlDate(note)"></span>
               <span class="k-note-snippet" :text="nlPreview(note)"></span>
-              <span class="k-sub" :if="nlFolderName(note)" style="margin-left: auto; white-space: nowrap" :text="safe(nlFolderName(note))"></span>
+              <span class="k-sub" :if="nlFolderName(note)" style="margin-left: auto; white-space: nowrap" :text="nlFolderName(note)"></span>
             </span>
           </button>
           <button type="button" class="k-icon-btn k-note-pin" :if="!nlNotes.inTrash()" :aria-pressed="note.pinned ? 'true' : 'false'" :aria-label="note.pinned ? 'Unpin note' : 'Pin note'" @click="nlNotes.pin(note.id)"><i class="i-hugeicons-pin k-ico" aria-hidden="true"></i></button>

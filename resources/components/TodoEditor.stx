@@ -2,7 +2,6 @@
   import { focusField } from '../functions/kept/client'
   import { dayLabel, deadlineLabel } from '../functions/kept/format'
   import { renderMarkdown, toggleCheckLine } from '../functions/kept/markdown'
-  import { safe } from '../functions/kept/safe'
   import { parseTagInput, whenLabel, whenPatch } from '../functions/kept/todos'
 
   const teWs = useStore('workspace')
@@ -120,12 +119,12 @@
       <div :if="teShowCheck()" style="margin: 6px 0 2px">
         <ul style="list-style: none; margin: 0; padding: 0" role="list">
           <li class="k-check-item" :for="(item, index) in teTodo().checklist" :key="item.id" :data-done="item.done ? 'true' : 'false'">
-            <button type="button" class="k-check k-check-sm" role="checkbox" :aria-checked="item.done ? 'true' : 'false'" :aria-label="safe((item.done ? 'Mark not done: ' : 'Done: ') + item.title)" @click="teTasks.setCheck(teTodo().id, item.id, { done: !item.done })"><i class="i-hugeicons-tick-02 k-tick" aria-hidden="true"></i></button>
+            <button type="button" class="k-check k-check-sm" role="checkbox" :aria-checked="item.done ? 'true' : 'false'" :aria-label="(item.done ? 'Mark not done: ' : 'Done: ') + item.title" @click="teTasks.setCheck(teTodo().id, item.id, { done: !item.done })"><i class="i-hugeicons-tick-02 k-tick" aria-hidden="true"></i></button>
             <input class="k-bare" type="text" :value="item.title" :aria-label="'Checklist item ' + (index + 1)" style="font-size: 14px" @change="teRenameCheck(item, $event)">
             <span class="k-item-tools">
-              <button type="button" class="k-icon-btn" :aria-label="safe('Move up: ' + item.title)" :disabled="index === 0" @click="teTasks.moveCheck(teTodo().id, item.id, -1)"><i class="i-hugeicons-arrow-up-02 k-ico" aria-hidden="true"></i></button>
-              <button type="button" class="k-icon-btn" :aria-label="safe('Move down: ' + item.title)" :disabled="index === teTodo().checklist.length - 1" @click="teTasks.moveCheck(teTodo().id, item.id, 1)"><i class="i-hugeicons-arrow-down-02 k-ico" aria-hidden="true"></i></button>
-              <button type="button" class="k-icon-btn" :aria-label="safe('Delete: ' + item.title)" @click="teTasks.removeCheck(teTodo().id, item.id)"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i></button>
+              <button type="button" class="k-icon-btn" :aria-label="'Move up: ' + item.title" :disabled="index === 0" @click="teTasks.moveCheck(teTodo().id, item.id, -1)"><i class="i-hugeicons-arrow-up-02 k-ico" aria-hidden="true"></i></button>
+              <button type="button" class="k-icon-btn" :aria-label="'Move down: ' + item.title" :disabled="index === teTodo().checklist.length - 1" @click="teTasks.moveCheck(teTodo().id, item.id, 1)"><i class="i-hugeicons-arrow-down-02 k-ico" aria-hidden="true"></i></button>
+              <button type="button" class="k-icon-btn" :aria-label="'Delete: ' + item.title" @click="teTasks.removeCheck(teTodo().id, item.id)"><i class="i-hugeicons-delete-02 k-ico" aria-hidden="true"></i></button>
             </span>
           </li>
         </ul>
@@ -139,8 +138,8 @@
       <div class="k-card-foot">
         <button type="button" class="k-chip-btn" @click="teToggle('when')"><i class="k-ico" style="width: 16px; height: 16px" :class="teTodo().when === 'evening' ? 'i-f7-moon-fill k-gl-evening' : teIsToday() ? 'i-f7-star-fill k-gl-today' : 'i-hugeicons-calendar-03'" aria-hidden="true"></i><span :text="teWhen()"></span></button>
         <button type="button" class="k-chip-btn" :if="teTodo().deadline" @click="teToggle('deadline')"><i class="i-hugeicons-flag-02 k-ico" style="width: 15px; height: 15px" aria-hidden="true"></i><span :text="deadlineLabel(teTodo().deadline, teToday())"></span></button>
-        <span class="k-chip k-chip-accent" :for="tag in teTodo().tags" :key="tag"><span :text="safe(tag)"></span>
-          <button type="button" class="k-icon-btn" style="width: 20px; height: 20px" :aria-label="safe('Remove tag ' + tag)" @click="teDropTag(tag)"><i class="i-hugeicons-cancel-01 k-ico" style="width: 11px; height: 11px" aria-hidden="true"></i></button>
+        <span class="k-chip k-chip-accent" :for="tag in teTodo().tags" :key="tag"><span :text="tag"></span>
+          <button type="button" class="k-icon-btn" style="width: 20px; height: 20px" :aria-label="'Remove tag ' + tag" @click="teDropTag(tag)"><i class="i-hugeicons-cancel-01 k-ico" style="width: 11px; height: 11px" aria-hidden="true"></i></button>
         </span>
         <span class="k-chip" :if="teTodo().repeat !== 'none'" :text="'Repeats ' + teTodo().repeat"></span>
         <span style="flex: 1"></span>
@@ -180,8 +179,8 @@
         <div style="display: flex; align-items: center; gap: 8px"><label class="k-sub" for="te-place" style="width: 60px">List</label>
           <select id="te-place" class="k-select" style="width: auto; max-width: 100%; min-height: 34px" :value="tePlace()" @change="teSetPlace($event)">
             <option value="">No project or area</option>
-            <option :for="area in teWs.areas()" :key="'a' + area.id" :value="'a:' + area.id" :text="safe('Area: ' + area.title)"></option>
-            <option :for="project in teWs.projects()" :key="'p' + project.id" :value="'p:' + project.id" :text="safe('Project: ' + project.title)"></option>
+            <option :for="area in teWs.areas()" :key="'a' + area.id" :value="'a:' + area.id" :text="'Area: ' + area.title"></option>
+            <option :for="project in teWs.projects()" :key="'p' + project.id" :value="'p:' + project.id" :text="'Project: ' + project.title"></option>
           </select></div>
         <div style="display: flex; gap: 8px">
           <button type="button" class="k-btn" :if="teDone()" @click="teTasks.reopen(teTodo().id)"><i class="i-hugeicons-delete-put-back k-ico" aria-hidden="true"></i>Reopen</button>

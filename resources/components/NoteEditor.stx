@@ -1,5 +1,4 @@
 <script client>
-  import { safe } from '../functions/kept/safe'
   import { applyFormat, checkProgress, continueList, renderMarkdown, toggleCheckLine } from '../functions/kept/markdown'
 
   const neWs = useStore('workspace')
@@ -115,7 +114,7 @@
       <label class="k-sub" for="ne-folder">Folder</label>
       <select id="ne-folder" class="k-select" style="width: auto; min-height: 32px; padding: 2px 8px" :value="neFolder()" @change="neMove($event)">
         <option value="">None</option>
-        <option :for="folder in neWs.folders()" :key="folder.id" :value="String(folder.id)" :text="safe(folder.title)"></option>
+        <option :for="folder in neWs.folders()" :key="folder.id" :value="String(folder.id)" :text="folder.title"></option>
       </select>
       <span style="flex: 1"></span>
       <span class="k-sub" :if="neProgress().total" :text="neProgress().done + ' of ' + neProgress().total + ' done'"></span>

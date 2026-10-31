@@ -4,7 +4,6 @@
   import { ApiError } from '../functions/kept/api'
   import { fillPrompt } from '../../app/Support/prompts'
   import { filledSegments, filterPrompts } from '../functions/kept/promptview'
-  import { safe } from '../functions/kept/safe'
 
   const pbColor = useColorMode()
   const pbPref = state(pbColor.preference)
@@ -74,9 +73,9 @@
     <header style="display: flex; align-items: center; gap: 14px; margin-bottom: 20px">
       <span class="k-lib-badge" style="width: 48px; height: 48px; border-radius: 12px" :style="'background:' + libraryColor(pbLibrary().color)"><i class="k-ico" style="width: 26px; height: 26px" :class="libraryIcon(pbLibrary().icon)" aria-hidden="true"></i></span>
       <div style="min-width: 0">
-        <h1 class="k-title" :text="safe(pbLibrary().title)"></h1>
-        <p class="k-sub" style="margin: 4px 0 0" :text="safe(pbLibrary().description || ('Shared by ' + (pbLibrary().owner || 'someone')))"></p>
-        <p class="k-sub" style="margin: 2px 0 0" :if="pbLibrary().description" :text="safe('Shared by ' + (pbLibrary().owner || 'someone') + '. Read only.')"></p>
+        <h1 class="k-title" :text="pbLibrary().title"></h1>
+        <p class="k-sub" style="margin: 4px 0 0" :text="pbLibrary().description || ('Shared by ' + (pbLibrary().owner || 'someone'))"></p>
+        <p class="k-sub" style="margin: 2px 0 0" :if="pbLibrary().description" :text="'Shared by ' + (pbLibrary().owner || 'someone') + '. Read only.'"></p>
       </div>
     </header>
 
@@ -89,16 +88,16 @@
     <ul class="k-rows" role="list" style="padding: 0">
       <li :for="prompt in pbPrompts()" :key="prompt.id" role="listitem" style="border-top: 1px solid var(--line); padding: 4px 0">
         <button type="button" class="k-prompt" :aria-expanded="pbOpen() === prompt.id ? 'true' : 'false'" @click="pbToggle(prompt.id)">
-          <strong style="display: block" :text="safe(prompt.title)"></strong>
-          <span class="k-sub" :if="prompt.description" :text="safe(prompt.description)"></span>
-          <span class="k-meta" :if="prompt.tags.length || prompt.model"><span class="k-chip k-chip-accent" :if="prompt.model" :text="safe(prompt.model)"></span><span class="k-chip" :for="tag in prompt.tags" :key="tag" :text="safe(tag)"></span></span>
+          <strong style="display: block" :text="prompt.title"></strong>
+          <span class="k-sub" :if="prompt.description" :text="prompt.description"></span>
+          <span class="k-meta" :if="prompt.tags.length || prompt.model"><span class="k-chip k-chip-accent" :if="prompt.model" :text="prompt.model"></span><span class="k-chip" :for="tag in prompt.tags" :key="tag" :text="tag"></span></span>
         </button>
         <div :if="pbOpen() === prompt.id" style="padding: 4px 14px 18px">
           <div class="k-field" :for="name in prompt.variables" :key="name">
-            <label class="k-label" :for="'pb-' + prompt.id + '-' + name" :text="safe(name)"></label>
+            <label class="k-label" :for="'pb-' + prompt.id + '-' + name" :text="name"></label>
             <textarea :id="'pb-' + prompt.id + '-' + name" class="k-textarea" rows="1" style="min-height: 44px; field-sizing: content" :value="pbValue(prompt.id, name)" @input="pbSet(prompt.id, name, $event)"></textarea>
           </div>
-          <div class="k-filled"><template :for="part in pbParts(prompt)"><mark :if="part.variable" :text="safe(part.text)"></mark><span :if="!part.variable" :text="safe(part.text)"></span></template></div>
+          <div class="k-filled"><template :for="part in pbParts(prompt)"><mark :if="part.variable" :text="part.text"></mark><span :if="!part.variable" :text="part.text"></span></template></div>
           <div style="display: flex; justify-content: flex-end; margin-top: 12px">
             <button type="button" class="k-btn k-btn-primary" @click="pbCopy(prompt)"><i class="k-ico" :class="pbCopied() === prompt.id ? 'i-hugeicons-tick-02' : 'i-hugeicons-copy-01'" aria-hidden="true"></i><span :text="pbCopied() === prompt.id ? 'Copied' : 'Copy prompt'"></span></button>
           </div>

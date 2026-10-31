@@ -1,6 +1,5 @@
 <script client>
   import { libraryColor, libraryIcon } from '../functions/kept/promptview'
-  import { safe } from '../functions/kept/safe'
   import { initials } from '../functions/kept/format'
 
   const plWs = useStore('workspace')
@@ -18,14 +17,14 @@
   const plSub = derived(() => {
     const lib = plLibrary()
     if (!lib) return ''
-    return safe(lib.shared ? 'Shared by ' + (lib.owner || 'someone') + '. ' + plRoleText() : lib.description)
+    return lib.shared ? 'Shared by ' + (lib.owner || 'someone') + '. ' + plRoleText() : lib.description
   })
   const plEmptyText = derived(() => (plSearch().trim() || plPrompts.favoritesOnly() ? 'No prompts match.' : plPrompts.canEdit() ? 'No prompts yet. Add the first one with the plus button.' : 'This library has no prompts yet.'))
 
   effect(() => { plPrompts.search.set(plSearch()) })
   effect(() => { if (plId()) { plSearch.set(''); } })
 
-  const plPreview = (prompt) => safe(prompt.description || prompt.body.replace(/\s+/g, ' ').slice(0, 120) || 'Empty prompt')
+  const plPreview = (prompt) => prompt.description || prompt.body.replace(/\s+/g, ' ').slice(0, 120) || 'Empty prompt'
 
   async function plCreateLibrary(event) {
     event.preventDefault()
@@ -56,7 +55,7 @@
         <li :for="lib in plOwned()" :key="lib.id" role="listitem">
           <button type="button" class="k-prompt" style="display: flex; gap: 12px; align-items: center" @click="plWs.open({ section: 'prompts', library: lib.id, item: null })">
             <span class="k-lib-badge" :style="'background:' + libraryColor(lib.color)"><i class="k-ico" :class="libraryIcon(lib.icon)" aria-hidden="true"></i></span>
-            <span style="flex: 1; min-width: 0"><strong style="display: block" :text="safe(lib.title)"></strong><span class="k-sub" :text="safe(lib.description || (lib.prompts || 0) + ' prompts')"></span></span>
+            <span style="flex: 1; min-width: 0"><strong style="display: block" :text="lib.title"></strong><span class="k-sub" :text="lib.description || (lib.prompts || 0) + ' prompts'"></span></span>
             <i class="i-hugeicons-link-02 k-ico" :if="lib.linked" style="color: var(--text-3)" aria-label="Has a public link"></i>
           </button>
         </li>
@@ -66,7 +65,7 @@
         <li :for="lib in plShared()" :key="'s' + lib.id" role="listitem">
           <button type="button" class="k-prompt" style="display: flex; gap: 12px; align-items: center" @click="plWs.open({ section: 'prompts', library: lib.id, item: null })">
             <span class="k-lib-badge" :style="'background:' + libraryColor(lib.color)"><i class="k-ico" :class="libraryIcon(lib.icon)" aria-hidden="true"></i></span>
-            <span style="flex: 1; min-width: 0"><strong style="display: block" :text="safe(lib.title)"></strong><span class="k-sub" :text="safe('From ' + (lib.owner || 'someone'))"></span></span>
+            <span style="flex: 1; min-width: 0"><strong style="display: block" :text="lib.title"></strong><span class="k-sub" :text="'From ' + (lib.owner || 'someone')"></span></span>
             <span class="k-chip" :text="lib.role"></span>
           </button>
         </li>
@@ -81,7 +80,7 @@
       <button type="button" class="k-back k-back-main k-icon-btn" aria-label="Back to lists" @click="plWs.back()"><i class="i-hugeicons-arrow-left-01 k-ico" aria-hidden="true"></i></button>
       <span class="k-lib-badge" :if="plLibrary()" :style="'background:' + libraryColor(plLibrary().color)"><i class="k-ico" :class="libraryIcon(plLibrary().icon)" aria-hidden="true"></i></span>
       <div style="flex: 1; min-width: 0">
-        <h1 class="k-title" style="font-size: 22px" :text="plLibrary() ? safe(plLibrary().title) : ''"></h1>
+        <h1 class="k-title" style="font-size: 22px" :text="plLibrary() ? plLibrary().title : ''"></h1>
         <p class="k-sub" :if="plSub()" style="margin: 2px 0 0" :text="plSub()"></p>
       </div>
       <button type="button" class="k-icon-btn" :if="plPrompts.isOwner()" aria-label="Share library" title="Share" @click="plPrompts.showShare()"><i class="i-hugeicons-share-08 k-ico k-ico-lg" aria-hidden="true"></i></button>
@@ -105,11 +104,11 @@
       <ul class="k-rows" role="list">
         <li :for="prompt in plPrompts.visible()" :key="prompt.id" role="listitem" style="position: relative">
           <button type="button" class="k-prompt" :aria-current="plOpenId() === prompt.id ? 'true' : 'false'" @click="plPrompts.open(prompt.id)">
-            <strong style="display: block; padding-right: 40px" :text="safe(prompt.title)"></strong>
+            <strong style="display: block; padding-right: 40px" :text="prompt.title"></strong>
             <span class="k-sub" style="display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap" :text="plPreview(prompt)"></span>
-            <span class="k-meta" :if="prompt.tags.length || prompt.model"><span class="k-chip k-chip-accent" :if="prompt.model" :text="safe(prompt.model)"></span><span class="k-chip" :for="tag in prompt.tags" :key="tag" :text="safe(tag)"></span></span>
+            <span class="k-meta" :if="prompt.tags.length || prompt.model"><span class="k-chip k-chip-accent" :if="prompt.model" :text="prompt.model"></span><span class="k-chip" :for="tag in prompt.tags" :key="tag" :text="tag"></span></span>
           </button>
-          <button type="button" class="k-icon-btn" style="position: absolute; right: 6px; top: 8px" :aria-pressed="prompt.favorite ? 'true' : 'false'" :aria-label="safe((prompt.favorite ? 'Remove from favorites: ' : 'Add to favorites: ') + prompt.title)" :disabled="!plPrompts.canEdit()" @click="plPrompts.toggleFavorite(prompt.id)">
+          <button type="button" class="k-icon-btn" style="position: absolute; right: 6px; top: 8px" :aria-pressed="prompt.favorite ? 'true' : 'false'" :aria-label="(prompt.favorite ? 'Remove from favorites: ' : 'Add to favorites: ') + prompt.title" :disabled="!plPrompts.canEdit()" @click="plPrompts.toggleFavorite(prompt.id)">
             <i class="k-ico" :class="prompt.favorite ? 'i-hugeicons-favourite' : 'i-hugeicons-favourite'" :style="prompt.favorite ? 'color: var(--accent-text)' : 'opacity: .55'" aria-hidden="true"></i>
           </button>
         </li>
