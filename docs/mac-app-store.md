@@ -53,14 +53,16 @@ own validation and the data-protection Keychain with the real access group.
 ## Credentials: what is required, what is present
 
 Nothing below is committed. Variables are read by `desktop:apple:*`
-(`buddy desktop:apple:doctor` lists whatever is missing).
+(`buddy desktop:apple:doctor` lists whatever is missing). With the profile and both
+identities set, `desktop:apple:package` produced a signed `Library-1.0.0-1.pkg`; only the
+App Store Connect API key is missing, and it is needed for the upload, not the build.
 
 | Needed | Variable | Status on this Mac |
 |---|---|---|
-| Bundle id registered with the Mac platform, Keychain Sharing off (the group is the app id) | n/a | being registered by the owner |
-| Mac App Store provisioning profile for `com.stacksjs.library` | `APPLE_PROVISIONING_PROFILE` (path to the `.provisionprofile`) | **missing** |
+| Bundle id registered with the Mac platform, Keychain Sharing off (the group is the app id) | n/a | registered (`com.stacksjs.library`, team 3JJRNQW6B7) |
+| Mac App Store provisioning profile for `com.stacksjs.library` | `APPLE_PROVISIONING_PROFILE` (path to the `.provisionprofile`) | created 2026-10-31 ("Library Mac App Store", the Apple Distribution certificate, expires 2027-10-29); kept outside the repo in `~/.local/share/library-appstore/` |
 | App signing identity (`Apple Distribution` or `3rd Party Mac Developer Application`) | `APPLE_APP_SIGNING_IDENTITY` | `Apple Distribution: Chris Breuer (3JJRNQW6B7)` is in the login keychain |
-| Installer signing identity (`3rd Party Mac Developer Installer` / `Mac Installer Distribution`) | `APPLE_INSTALLER_SIGNING_IDENTITY` | **missing**: not in the keychain (only the Apple Development, two Developer ID Application and the Apple Distribution identities) |
+| Installer signing identity (`3rd Party Mac Developer Installer` / `Mac Installer Distribution`) | `APPLE_INSTALLER_SIGNING_IDENTITY` | `3rd Party Mac Developer Installer: Chris Breuer (3JJRNQW6B7)` is in the login keychain |
 | App Store Connect API key id, issuer id and `.p8` | `APP_STORE_CONNECT_API_KEY_ID`, `APP_STORE_CONNECT_API_ISSUER_ID`, `APP_STORE_CONNECT_API_KEY_PATH` | **missing** (none set); only for `desktop:apple:publish`/validation and `desktop:apple:provision` |
 | Build number that grows with each upload | `APPLE_BUILD_NUMBER` (default 1 in `config/desktop.ts`) | per upload |
 
