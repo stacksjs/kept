@@ -5,7 +5,6 @@
 
   const nlWs = useStore('workspace')
   const nlNotes = useStore('notes')
-  const nlSearch = state('')
   const nlName = state('')
   const nlRenaming = state(false)
   const nlFolder = nlNotes.folder
@@ -29,7 +28,6 @@
   const nlCount = derived(() => nlNotes.visible().length)
   const nlEmptyText = derived(() => (nlNotes.searching() ? 'No notes match your search.' : nlFolder() === 'all' ? 'No notes yet. Start one with the plus button.' : nlFolder() === 'trash' ? 'Deleted notes stay here for 30 days.' : typeof nlFolder() === 'string' ? 'No notes use this tag.' : 'This folder is empty.'))
 
-  effect(() => { nlNotes.search.set(nlSearch()) })
   effect(() => { nlNotes.folder(); nlRenaming.set(false) })
 
   const nlDate = (note) => (nlFolder() === 'trash' ? daysLeft(note.deleted_at, nlNotes.trashDays()) + ' days left' : noteDate(note.updated_at))
@@ -82,7 +80,7 @@
   <div class="k-search">
     <i class="i-hugeicons-search-01 k-ico" aria-hidden="true"></i>
     <label class="sr-only" for="nl-search">Search notes</label>
-    <input id="nl-search" type="search" data-focus="search" x-model="nlSearch" placeholder="Search notes" autocomplete="off">
+    <input id="nl-search" type="search" data-focus="search" x-model="nlNotes.search" placeholder="Search notes" autocomplete="off">
   </div>
 
   <div class="k-scroll" @scroll="nlScroll($event)">

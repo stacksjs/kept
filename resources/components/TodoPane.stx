@@ -3,7 +3,6 @@
   const tpWs = useStore('workspace')
   const tpTasks = useStore('tasks')
   const tpName = state('')
-  const tpQuery = state('')
   const tpEditing = state(false)
 
   const TITLES = { inbox: 'Inbox', today: 'Today', upcoming: 'Upcoming', anytime: 'Anytime', someday: 'Someday', logbook: 'Logbook' }
@@ -40,18 +39,17 @@
   const GLYPHS = { inbox: 'i-f7-tray-fill k-gl-inbox', today: 'i-f7-star-fill k-gl-today', upcoming: 'i-f7-calendar k-gl-upcoming', anytime: 'i-f7-layers-fill k-gl-anytime', someday: 'i-f7-archivebox-fill k-gl-someday', logbook: 'i-f7-checkmark-square-fill k-gl-logbook' }
   const tpGlyph = derived(() => (tpView().kind === 'list' ? GLYPHS[tpView().name] : ''))
   const tpEmptyIcon = derived(() => (tpView().kind === 'list' ? 'i-f7-' + { inbox: 'tray-fill', today: 'star-fill', upcoming: 'calendar', anytime: 'layers-fill', someday: 'archivebox-fill', logbook: 'checkmark-square-fill' }[tpView().name] : 'i-hugeicons-checkmark-circle-02'))
-  const tpIsUpcoming = derived(() => tpView().kind === 'list' && tpView().name === 'upcoming' && !tpQuery().trim())
-  const tpSearching = derived(() => tpTasks.searchOpen() || tpQuery().trim().length > 0)
+  const tpIsUpcoming = derived(() => tpView().kind === 'list' && tpView().name === 'upcoming' && !tpTasks.query().trim())
+  const tpSearching = derived(() => tpTasks.searchOpen() || tpTasks.query().trim().length > 0)
   const tpOpenId = derived(() => { const r = tpWs.route(); return r.section === 'todos' ? r.item : null })
-  effect(() => { tpTasks.query.set(tpQuery()) })
-  effect(() => { tpWs.route(); tpQuery.set(''); tpTasks.searchOpen.set(false) })
+  effect(() => { tpWs.route(); tpTasks.query.set(''); tpTasks.searchOpen.set(false) })
 
   function tpToggleSearch() {
-    if (tpSearching()) { tpQuery.set(''); tpTasks.searchOpen.set(false); return }
+    if (tpSearching()) { tpTasks.query.set(''); tpTasks.searchOpen.set(false); return }
     tpTasks.searchOpen.set(true)
     focusField('search')
   }
-  function tpSearchKey(event) { if (event.key === 'Escape') { event.stopPropagation(); tpQuery.set(''); tpTasks.searchOpen.set(false) } }
+  function tpSearchKey(event) { if (event.key === 'Escape') { event.stopPropagation(); tpTasks.query.set(''); tpTasks.searchOpen.set(false) } }
   function tpNeeds(tab) { tpTasks.editorTab.set(tab) }
   function tpActOn(tab) {
     const id = tpTasks.cursor()
@@ -107,7 +105,7 @@
     <div class="k-search" :if="tpSearching()" style="margin: 0; width: 220px">
       <i class="i-hugeicons-search-01 k-ico" aria-hidden="true"></i>
       <label class="sr-only" for="tp-search">Search to-dos</label>
-      <input id="tp-search" type="search" data-focus="search" x-model="tpQuery" placeholder="Search" autocomplete="off" @keydown="tpSearchKey($event)">
+      <input id="tp-search" type="search" data-focus="search" x-model="tpTasks.query" placeholder="Search" autocomplete="off" @keydown="tpSearchKey($event)">
     </div>
     <MoreMenu :if="tpEditable()" label="Options">
       <button type="button" role="menuitem" @click="tpEdit()"><i class="i-hugeicons-pencil-edit-02 k-ico" aria-hidden="true"></i>Rename</button>

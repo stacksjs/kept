@@ -4,7 +4,6 @@
 
   const plWs = useStore('workspace')
   const plPrompts = useStore('prompts')
-  const plSearch = state('')
   const plNew = state(false)
   const plTitle = state('')
   const plEditSheet = state(false)
@@ -19,10 +18,9 @@
     if (!lib) return ''
     return lib.shared ? 'Shared by ' + (lib.owner || 'someone') + '. ' + plRoleText() : lib.description
   })
-  const plEmptyText = derived(() => (plSearch().trim() || plPrompts.favoritesOnly() ? 'No prompts match.' : plPrompts.canEdit() ? 'No prompts yet. Add the first one with the plus button.' : 'This library has no prompts yet.'))
+  const plEmptyText = derived(() => (plPrompts.search().trim() || plPrompts.favoritesOnly() ? 'No prompts match.' : plPrompts.canEdit() ? 'No prompts yet. Add the first one with the plus button.' : 'This library has no prompts yet.'))
 
-  effect(() => { plPrompts.search.set(plSearch()) })
-  effect(() => { if (plId()) { plSearch.set(''); } })
+  effect(() => { if (plId()) { plPrompts.search.set(''); } })
 
   const plPreview = (prompt) => prompt.description || prompt.body.replace(/\s+/g, ' ').slice(0, 120) || 'Empty prompt'
 
@@ -95,7 +93,7 @@
       <div class="k-search" style="flex: 1">
         <i class="i-hugeicons-search-01 k-ico" aria-hidden="true"></i>
         <label class="sr-only" for="pl-search">Search prompts</label>
-        <input id="pl-search" type="search" data-focus="search" x-model="plSearch" placeholder="Search prompts" autocomplete="off">
+        <input id="pl-search" type="search" data-focus="search" x-model="plPrompts.search" placeholder="Search prompts" autocomplete="off">
       </div>
       <button type="button" class="k-pill" :aria-pressed="plPrompts.favoritesOnly() ? 'true' : 'false'" @click="plPrompts.favoritesOnly.update(v => !v)"><i class="i-hugeicons-favourite k-ico" style="width: 15px; height: 15px" aria-hidden="true"></i>Favorites</button>
     </div>
