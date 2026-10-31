@@ -5,7 +5,7 @@
  * projects in Anytime), what each row shows, how Notes groups its list by
  * date, prompt variables, note check lines and formatting, inline completion
  * text, and the offline cache's keys and limits. Nothing here touches Craft,
- * so all of it runs under `bun test`; `native-kept.ts` is the part that does.
+ * so all of it runs under `bun test`; `native-library.ts` is the part that does.
  */
 import { addDays } from '../../../app/Support/dates'
 import type { SmartList } from '../../../app/Support/lists'
@@ -359,7 +359,7 @@ export function resolveDay(value: string | null, today: string): string | null {
 
 // Prompts
 
-/** A new prompt starts with one variable so the Use sheet has something to show. Kept here: stx reads braces in a screen script as a template. */
+/** A new prompt starts with one variable so the Use sheet has something to show. Written out here: stx reads braces in a screen script as a template. */
 export const NEW_PROMPT_BODY = 'Write about {{topic}}.'
 
 const VARIABLE = /\{\{\s*([A-Za-z_][\w.-]*)\s*\}\}/g

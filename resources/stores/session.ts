@@ -1,10 +1,10 @@
 import { defineStore, state } from '@stacksjs/stx'
-import { api, go, safeNext, session } from '../functions/kept/client'
-import { ApiError } from '../functions/kept/api'
+import { api, go, safeNext, session } from '../functions/library/client'
+import { ApiError } from '../functions/library/api'
 
 interface User { id: number, email: string, name: string }
 
-/** Who is signed in, and the sign-in, sign-up and sign-out flows. The token itself lives in `functions/kept/session.ts`. */
+/** Who is signed in, and the sign-in, sign-up and sign-out flows. The token itself lives in `functions/library/session.ts`. */
 defineStore('account', () => {
   const user = state<User | null>(null)
   const ready = state(false)

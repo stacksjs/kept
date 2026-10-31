@@ -1,4 +1,4 @@
-/** Calendar dates in Kept are `YYYY-MM-DD` strings, so they never move with a time zone. */
+/** Calendar dates in Library are `YYYY-MM-DD` strings, so they never move with a time zone. */
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 
 export function isDay(value: unknown): value is string {

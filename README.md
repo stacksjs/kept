@@ -1,4 +1,4 @@
-# Kept
+# Library
 
 A [Stacks](https://stacksjs.com) application.
 

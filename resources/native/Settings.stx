@@ -1,5 +1,5 @@
 <script client>
-import { apiOrigin, keychainSession, nativeApi, nativeCraft, saveAccount, savedAccount } from '../functions/kept/native-kept'
+import { apiOrigin, keychainSession, nativeApi, nativeCraft, saveAccount, savedAccount } from '../functions/library/native-library'
 
 const session = keychainSession()
 const api = nativeApi(session)

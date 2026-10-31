@@ -1,9 +1,9 @@
 import { defineStore, derived, state, useStore } from '@stacksjs/stx'
 import { noteTitleAndSnippet } from '../../app/Support/notes'
-import { api } from '../functions/kept/client'
-import { filterNotes, findLinked, groupNotes, matchSnippet, normalizeNote, sortNotes, tagCounts, type NoteSort } from '../functions/kept/notes'
-import type { NoteFolderKey } from '../functions/kept/router'
-import type { Note } from '../functions/kept/types'
+import { api } from '../functions/library/client'
+import { filterNotes, findLinked, groupNotes, matchSnippet, normalizeNote, sortNotes, tagCounts, type NoteSort } from '../functions/library/notes'
+import type { NoteFolderKey } from '../functions/library/router'
+import type { Note } from '../functions/library/types'
 
 /**
  * Notes: the list, the search, and the editor's autosave. The server derives

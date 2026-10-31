@@ -3,7 +3,7 @@ interface AuthFormProps { mode?: 'signin' | 'signup' }
 const { mode = 'signin' } = defineProps<AuthFormProps>()
 </script>
 <script client>
-  import { queryParam } from '../functions/kept/client'
+  import { queryParam } from '../functions/library/client'
 
   const afMode = useReactiveProp('mode', 'signin')
   const afSession = useStore('account')

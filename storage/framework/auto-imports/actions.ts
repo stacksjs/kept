@@ -7,7 +7,10 @@
 export const actions = {
   'Actions/Lists/ListShowAction': '../../../app/Actions/Lists/ListShowAction.ts',
   'Actions/Lists/SidebarAction': '../../../app/Actions/Lists/SidebarAction.ts',
+  'Actions/Notes/NotePurgeAction': '../../../app/Actions/Notes/NotePurgeAction.ts',
+  'Actions/Notes/NoteRestoreAction': '../../../app/Actions/Notes/NoteRestoreAction.ts',
   'Actions/Notes/NoteSaveAction': '../../../app/Actions/Notes/NoteSaveAction.ts',
+  'Actions/Notes/NoteTrashAction': '../../../app/Actions/Notes/NoteTrashAction.ts',
   'Actions/NotifyUser': '../../../app/Actions/NotifyUser.ts',
   'Actions/Prompts/LibraryIndexAction': '../../../app/Actions/Prompts/LibraryIndexAction.ts',
   'Actions/Prompts/PromptIndexAction': '../../../app/Actions/Prompts/PromptIndexAction.ts',

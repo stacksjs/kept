@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { CompleterUnavailable, createGhost, type CompletionRequest } from '../../resources/functions/kept/ghost'
+import { CompleterUnavailable, createGhost, type CompletionRequest } from '../../resources/functions/library/ghost'
 
 function harness(complete: (request: CompletionRequest) => Promise<string>) {
   const timers: Array<() => void> = []

@@ -1,5 +1,5 @@
 /**
- * Kept's API client, shared by the web app and the native Mac app.
+ * Library's API client, shared by the web app and the native Mac app.
  *
  * One module owns every request so the two clients cannot drift: the shapes in
  * `types.ts`, the CSRF handshake for unauthenticated posts, the bearer token
@@ -22,7 +22,7 @@ export class ApiError extends Error {
 }
 
 export interface ApiOptions {
-  /** Origin of the Kept server, e.g. `https://kept.stacksjs.com`. Empty for same-origin web. */
+  /** Origin of the Library server, e.g. `https://library.stacksjs.com`. Empty for same-origin web. */
   base?: string
   session: Session
   fetch?: typeof fetch
@@ -150,4 +150,4 @@ export function createApi(options: ApiOptions) {
   }
 }
 
-export type KeptApi = ReturnType<typeof createApi>
+export type LibraryApi = ReturnType<typeof createApi>

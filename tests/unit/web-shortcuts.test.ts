@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { commandFor, isTyping } from '../../resources/functions/kept/shortcuts'
+import { commandFor, isTyping } from '../../resources/functions/library/shortcuts'
 
 describe('shortcuts', () => {
   it('moves with j/k and the arrow keys when not typing', () => {

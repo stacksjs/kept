@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { groupByDay, dayLabel, daysBetween, deadlineLabel, deadlineState, groupUpcoming, initials, noteDate, plural, shortDate } from '../../resources/functions/kept/format'
+import { groupByDay, dayLabel, daysBetween, deadlineLabel, deadlineState, groupUpcoming, initials, noteDate, plural, shortDate } from '../../resources/functions/library/format'
 
 const today = '2026-10-30'
 

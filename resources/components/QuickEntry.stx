@@ -1,6 +1,6 @@
 <script client>
-  import { activeElement, focusFirst, trapTab } from '../functions/kept/client'
-  import { parseTagInput, whenPatch } from '../functions/kept/todos'
+  import { activeElement, focusFirst, trapTab } from '../functions/library/client'
+  import { parseTagInput, whenPatch } from '../functions/library/todos'
 
   const qeTasks = useStore('tasks')
   const qeTitle = state('')

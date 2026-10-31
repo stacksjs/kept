@@ -26,7 +26,7 @@ what was tried and what happened, so it can be fixed at the source.
 - **The CSRF token `createApi` keeps goes stale after a sign-out** (`api.ts` seeds it
   once; signing out rotates the cookie, and the server mints a new one only for a
   request without one). Signing in again then got 403 Forbidden. The native
-  transport (`native-kept.ts`) now remembers the latest token any response set and
+  transport (`native-library.ts`) now remembers the latest token any response set and
   uses it for posts made before sign-in; the shared client would be the better home.
 
 ### Fixed in the host (verified)

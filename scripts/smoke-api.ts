@@ -1,5 +1,5 @@
 /**
- * End-to-end check of Kept's API against a running server (`./buddy dev --api`):
+ * End-to-end check of Library's API against a running server (`./buddy dev --api`):
  * registers a throwaway user, walks the to-do, note and prompt-sharing flows
  * the apps depend on, and fails loudly on the first surprise.
  *

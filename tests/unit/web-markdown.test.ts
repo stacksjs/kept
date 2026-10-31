@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { applyFormat, checkProgress, continueList, inline, renderMarkdown, toggleCheckLine } from '../../resources/functions/kept/markdown'
+import { applyFormat, checkProgress, continueList, inline, renderMarkdown, toggleCheckLine } from '../../resources/functions/library/markdown'
 
 describe('markdown', () => {
   it('links tags and [[notes]] only where asked', () => {

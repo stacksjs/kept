@@ -1,8 +1,8 @@
 import { defineStore, derived, state, useStore } from '@stacksjs/stx'
-import { api, renameNoteFolder } from '../functions/kept/client'
-import { formatRoute, HOME, panelFor, parentOf, parseRoute, type Route, withItem } from '../functions/kept/router'
-import type { Area, LibraryList, NoteFolder, Project, SidebarData } from '../functions/kept/types'
-import type { View } from '../functions/kept/todos'
+import { api, renameNoteFolder } from '../functions/library/client'
+import { formatRoute, HOME, panelFor, parentOf, parseRoute, type Route, withItem } from '../functions/library/router'
+import type { Area, LibraryList, NoteFolder, Project, SidebarData } from '../functions/library/types'
+import type { View } from '../functions/library/todos'
 
 export interface Toast { id: number, text: string, tone: 'info' | 'error' }
 

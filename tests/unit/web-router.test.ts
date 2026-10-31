@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { formatRoute, HOME, panelFor, parentOf, parseRoute, withItem } from '../../resources/functions/kept/router'
+import { formatRoute, HOME, panelFor, parentOf, parseRoute, withItem } from '../../resources/functions/library/router'
 
 describe('router', () => {
   it('reads and writes to-do routes', () => {

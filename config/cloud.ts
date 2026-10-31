@@ -2,7 +2,7 @@ import type { CloudConfig } from '@stacksjs/types'
 import type { CloudConfig as TsCloudConfig } from '@stacksjs/ts-cloud'
 import { env } from '@stacksjs/env'
 
-const APP_SLUG = 'kept'
+const APP_SLUG = 'library'
 const APP_DOMAIN = env.APP_DOMAIN || undefined
 
 /**

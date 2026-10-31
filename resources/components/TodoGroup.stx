@@ -3,8 +3,8 @@ interface TodoGroupProps { group?: any, projectNames?: boolean }
 const { group = null, projectNames = true } = defineProps<TodoGroupProps>()
 </script>
 <script client>
-  import { focusField } from '../functions/kept/client'
-  import { deadlineLabel, deadlineState } from '../functions/kept/format'
+  import { focusField } from '../functions/library/client'
+  import { deadlineLabel, deadlineState } from '../functions/library/format'
 
   const tgGroup = useReactiveProp('group', null)
   const tgNames = useReactiveProp('projectNames', true)

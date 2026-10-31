@@ -1,11 +1,11 @@
 <script client>
-import { today as deviceDay } from '../functions/kept/api'
-import { toggleCheckLine } from '../functions/kept/markdown'
-import { apiOrigin, desktop, keychainSession, nativeApi, nativeCraft, palette, readCache, requestCompletion, saveAccount, savedAccount, writeCache } from '../functions/kept/native-kept'
-import { acceptCompletionAt, checkLines, eventSelection, ghostAt, COMPLETION_DELAY, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, NEW_PROMPT_BODY, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, notesIn, parseDayField, parseNav, projectProgress, promptVariables, splitBlocks, blockHeader, quickEntry, REPEATS, resolveDay, rowMarks, shareLink, SMART_LISTS, sidebarSections, todoBlocks, whenChip } from '../functions/kept/native-model'
-import { daysLeft, normalizeNote } from '../functions/kept/notes'
-import { filterPrompts, normalizePrompt } from '../functions/kept/promptview'
-import { counts, normalizeTodo, parseTagInput, serializeChanges, whenPatch } from '../functions/kept/todos'
+import { today as deviceDay } from '../functions/library/api'
+import { toggleCheckLine } from '../functions/library/markdown'
+import { apiOrigin, desktop, keychainSession, nativeApi, nativeCraft, palette, readCache, requestCompletion, saveAccount, savedAccount, writeCache } from '../functions/library/native-library'
+import { acceptCompletionAt, checkLines, eventSelection, ghostAt, COMPLETION_DELAY, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, NEW_PROMPT_BODY, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, notesIn, parseDayField, parseNav, projectProgress, promptVariables, splitBlocks, blockHeader, quickEntry, REPEATS, resolveDay, rowMarks, shareLink, SMART_LISTS, sidebarSections, todoBlocks, whenChip } from '../functions/library/native-model'
+import { daysLeft, normalizeNote } from '../functions/library/notes'
+import { filterPrompts, normalizePrompt } from '../functions/library/promptview'
+import { counts, normalizeTodo, parseTagInput, serializeChanges, whenPatch } from '../functions/library/todos'
 
 const session = keychainSession()
 const api = nativeApi(session, () => signedOutHere())
@@ -1041,7 +1041,7 @@ onMount(async () => {
 </script>
 
 <View class="flex-1 flex-row" testID="main-shell">
-  <KeptMacSignIn :if="!signedIn()" class="flex-1" :error="authError()" :busy="authBusy()" :origin="apiOrigin()" :epoch="signOuts()" @submit="signInWith($event)" />
+  <LibraryMacSignIn :if="!signedIn()" class="flex-1" :error="authError()" :busy="authBusy()" :origin="apiOrigin()" :epoch="signOuts()" @submit="signInWith($event)" />
 
   <View :if="signedIn()" class="flex-col shrink-0 w-[240px] border-r" style="border-color: separator" material="sidebar" testID="sidebar-pane">
     <NativeSidebar class="flex-1" rowHeight="24" labelFontSize="15" :sections="sections()" :selected="selectedNav()" @change="pickNav(eventValue($event))" testID="sidebar" />
@@ -1281,7 +1281,7 @@ onMount(async () => {
     </View>
     <ScrollView class="flex-1" testID="prompt-list">
       <View class="flex-col gap-[1px] pb-[12px] px-[8px]">
-        <KeptMacListRow :for="prompt in shownPrompts()" :key="prompt.id" :rowId="'prompt-' + prompt.id" :title="prompt.title" :subtitle="prompt.description || prompt.body" :meta="prompt.uses ? (prompt.uses === 1 ? '1 use' : prompt.uses + ' uses') : ''" :symbol="prompt.favorite ? 'star.fill' : ''" :selected="prompt.id === promptId()" :fill="colors().selection" @choose="choosePrompt(prompt)" @menu="promptMenu(prompt)" />
+        <LibraryMacListRow :for="prompt in shownPrompts()" :key="prompt.id" :rowId="'prompt-' + prompt.id" :title="prompt.title" :subtitle="prompt.description || prompt.body" :meta="prompt.uses ? (prompt.uses === 1 ? '1 use' : prompt.uses + ' uses') : ''" :symbol="prompt.favorite ? 'star.fill' : ''" :selected="prompt.id === promptId()" :fill="colors().selection" @choose="choosePrompt(prompt)" @menu="promptMenu(prompt)" />
         <Text :if="!shownPrompts().length" class="p-[16px] text-[12.5px]" style="color: secondaryLabel" :text="search() ? 'No prompts match.' : 'No prompts in this library yet.'" testID="prompts-empty" />
       </View>
     </ScrollView>

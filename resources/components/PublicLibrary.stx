@@ -1,9 +1,9 @@
 <script client>
-  import { libraryColor, libraryIcon } from '../functions/kept/promptview'
-  import { api, copyText, lastPathSegment } from '../functions/kept/client'
-  import { ApiError } from '../functions/kept/api'
+  import { libraryColor, libraryIcon } from '../functions/library/promptview'
+  import { api, copyText, lastPathSegment } from '../functions/library/client'
+  import { ApiError } from '../functions/library/api'
   import { fillPrompt } from '../../app/Support/prompts'
-  import { filledSegments, filterPrompts } from '../functions/kept/promptview'
+  import { filledSegments, filterPrompts } from '../functions/library/promptview'
 
   const pbColor = useColorMode()
   const pbPref = state(pbColor.preference)

@@ -32,7 +32,7 @@ route.get('/hello', () => response.text('hello world'))
 // distinct cookie + state file) is the separate `./buddy down` /
 // `./buddy up` pair.
 
-// Kept: smart lists, completing and reopening to-dos, notes, and prompt libraries.
+// Library: smart lists, completing and reopening to-dos, notes, and prompt libraries.
 // The generated CRUD routes (todos, projects, areas, ...) come from each model's
 // `useApi` trait; these are the ones with rules of their own.
 route.get('/sidebar', 'Actions/Lists/SidebarAction').middleware('auth')

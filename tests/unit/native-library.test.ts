@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { nativeUrl, palette } from '../../resources/functions/kept/native-kept'
+import { nativeUrl, palette } from '../../resources/functions/library/native-library'
 
 describe('native API urls', () => {
   it('asks the paged list routes for every row', () => {

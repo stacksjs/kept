@@ -1,4 +1,4 @@
-/** The rows Kept's API returns. Field names are the database's (snake_case). */
+/** The rows Library's API returns. Field names are the database's (snake_case). */
 export type When = 'inbox' | 'today' | 'evening' | 'anytime' | 'someday'
 export type Repeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
 

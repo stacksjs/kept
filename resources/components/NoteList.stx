@@ -1,7 +1,7 @@
 <script client>
-  import { focusField } from '../functions/kept/client'
-  import { noteDate } from '../functions/kept/format'
-  import { daysLeft, NOTE_SORTS } from '../functions/kept/notes'
+  import { focusField } from '../functions/library/client'
+  import { noteDate } from '../functions/library/format'
+  import { daysLeft, NOTE_SORTS } from '../functions/library/notes'
 
   const nlWs = useStore('workspace')
   const nlNotes = useStore('notes')

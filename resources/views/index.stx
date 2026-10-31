@@ -7,7 +7,7 @@ useHead({
 })
 </script>
 <script client>
-  import { session, go } from '../functions/kept/client'
+  import { session, go } from '../functions/library/client'
   // Someone who is already signed in has no use for the welcome page.
   onMount(() => { if (session.token()) go('/app') })
 </script>

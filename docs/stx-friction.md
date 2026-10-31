@@ -7,7 +7,7 @@ Things that made the web app harder than it should have been while it was built,
 Tried: showing a to-do titled `{{ 1 + 1 }}` and a shared prompt whose body contains `{{count}}` through `:text`.
 Broke: the browser runtime scans text nodes for `{{ expr }}` after `:text` / `:html` has written them, evaluates the expression against the page scope and shows the result (`0`, `[object Object]`). A stranger's shared prompt can therefore run an expression in a reader's page.
 Want: bindings must never re-scan their own output. `:text` and `:html` should write inert text, and the scan should only apply to authored template text.
-Workaround: `resources/functions/kept/safe.ts` puts a zero-width space between the braces, and every user-supplied string passes through it on its way to a binding (and `escapeHtml` in the Markdown renderer does the same). Covered by `tests/unit/web-safe.test.ts`.
+Workaround: `resources/functions/library/safe.ts` puts a zero-width space between the braces, and every user-supplied string passes through it on its way to a binding (and `escapeHtml` in the Markdown renderer does the same). Covered by `tests/unit/web-safe.test.ts`.
 **Status: fixed in 0.2.765.** Bindings mark what they wrote (`:text`, `:html`, `{{ }}`) and the runtime never scans it, so a stranger's `{{ ... }}` is shown, not evaluated; `:html` markup is not walked for bindings either. `safe.ts` and its 61 call sites are removed. Tests: `security/binding-output-inert.test.ts`.
 
 ## 2. A literal `{{` anywhere in a template attribute is compiled as a mustache
@@ -28,7 +28,7 @@ Workaround: the layout lives in `resources/views/layouts/shell.stx`.
 
 ## 4. Import aliases are dropped in the auto-bundled store files
 
-Tried: `import { api, today as deviceDay } from '../functions/kept/client'` in `resources/stores/tasks.ts`, with a local `const today = state(...)`.
+Tried: `import { api, today as deviceDay } from '../functions/library/client'` in `resources/stores/tasks.ts`, with a local `const today = state(...)`.
 Broke: in the browser `ReferenceError: deviceDay is not defined` (the alias was removed from the import) and `Uncaught SyntaxError: Identifier 'today' has already been declared`.
 Want: bundle stores with a real bundler pass that keeps `as` aliases, or reject them with a compile error.
 Workaround: export a differently named function and import it without an alias.

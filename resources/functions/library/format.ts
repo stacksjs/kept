@@ -1,6 +1,6 @@
 import { addDays } from '../../../app/Support/dates'
 
-/** Dates in Kept are `YYYY-MM-DD` strings, so all of this is plain calendar arithmetic with no time zone in it. */
+/** Dates in Library are `YYYY-MM-DD` strings, so all of this is plain calendar arithmetic with no time zone in it. */
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']

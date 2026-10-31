@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { pagedUrl } from '../../resources/functions/kept/client'
-import { webSession } from '../../resources/functions/kept/session'
+import { pagedUrl } from '../../resources/functions/library/client'
+import { webSession } from '../../resources/functions/library/session'
 
 describe('client', () => {
   it('asks the paginated index routes for everything', () => {

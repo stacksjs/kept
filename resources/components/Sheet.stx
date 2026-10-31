@@ -3,7 +3,7 @@ interface SheetProps { open?: boolean, title?: string, drawer?: boolean }
 const { open = false, title = '', drawer = false } = defineProps<SheetProps>()
 </script>
 <script client>
-  import { activeElement, focusFirst, trapTab } from '../functions/kept/client'
+  import { activeElement, focusFirst, trapTab } from '../functions/library/client'
 
   const shOpen = useReactiveProp('open', false)
   const shTitle = useReactiveProp('title', '')

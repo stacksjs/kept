@@ -1,6 +1,6 @@
 <script client>
-  import { noteDate } from '../functions/kept/format'
-  import { initials } from '../functions/kept/format'
+  import { noteDate } from '../functions/library/format'
+  import { initials } from '../functions/library/format'
 
   const psPrompts = useStore('prompts')
   const psInvite = state('')

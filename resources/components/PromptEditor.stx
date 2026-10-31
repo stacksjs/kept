@@ -1,6 +1,6 @@
 <script client>
-  import { segments } from '../functions/kept/promptview'
-  import { parseTagInput } from '../functions/kept/todos'
+  import { segments } from '../functions/library/promptview'
+  import { parseTagInput } from '../functions/library/todos'
 
   const peWs = useStore('workspace')
   const pePrompts = useStore('prompts')

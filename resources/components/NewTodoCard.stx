@@ -1,6 +1,6 @@
 <script client>
-  import { focusField } from '../functions/kept/client'
-  import { whenPatch } from '../functions/kept/todos'
+  import { focusField } from '../functions/library/client'
+  import { whenPatch } from '../functions/library/todos'
 
   const ntTasks = useStore('tasks')
   const ntTitle = state('')

@@ -8,7 +8,7 @@ import type { LibraryConfig } from '@stacksjs/types'
  * have any questions, feel free to reach out via Discord or GitHub Discussions.
  */
 export default {
-  name: 'kept',
+  name: 'library',
   // The npm scope your packages publish under, e.g. 'your-org'. Set it before
   // `buddy libs:publish`; the @ prefix is added automatically.
   owner: null,
@@ -31,7 +31,7 @@ export default {
    */
   packages: [
     {
-      name: 'kept-fx',
+      name: 'library-fx',
       kind: 'functions',
       description: 'Your function library description.',
       keywords: ['functions', 'composables', 'library', 'typescript', 'javascript'],
@@ -44,20 +44,20 @@ export default {
     },
 
     {
-      name: 'kept-components',
+      name: 'library-components',
       kind: 'components',
       description: 'Your STX component library, as tree-shakeable modules.',
       keywords: ['components', 'custom-elements', 'stx', 'library', 'typescript'],
-      prefix: 'kept',
+      prefix: 'library',
       include: ['*.stx'],
     },
 
     {
-      name: 'kept-elements',
+      name: 'library-elements',
       kind: 'web-components',
       description: 'Your framework agnostic web component library description.',
       keywords: ['custom-elements', 'web-components', 'library', 'framework-agnostic', 'typescript', 'javascript'],
-      prefix: 'kept',
+      prefix: 'library',
       include: ['*.stx'],
     },
   ],

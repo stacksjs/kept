@@ -1,5 +1,5 @@
 <script client>
-  import { applyFormat, checkProgress, continueList, renderMarkdown, toggleCheckLine } from '../functions/kept/markdown'
+  import { applyFormat, checkProgress, continueList, renderMarkdown, toggleCheckLine } from '../functions/library/markdown'
 
   const neWs = useStore('workspace')
   const neNotes = useStore('notes')

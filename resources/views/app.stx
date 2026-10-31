@@ -4,8 +4,8 @@
 useHead({ title: 'Library' })
 </script>
 <script client>
-  import { commandFor } from '../functions/kept/shortcuts'
-  import { focusField, isWide, scrollCursorIntoView } from '../functions/kept/client'
+  import { commandFor } from '../functions/library/shortcuts'
+  import { focusField, isWide, scrollCursorIntoView } from '../functions/library/client'
 
   const session = useStore('account')
   const ws = useStore('workspace')

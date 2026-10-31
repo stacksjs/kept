@@ -5,7 +5,7 @@
  * by the web app.
  */
 import type { NativeCraft, NativeDesktop } from '@stacksjs/stx/native'
-import { createApi, type KeptApi, type Session } from './api'
+import { createApi, type LibraryApi, type Session } from './api'
 import { capForCache, cacheKey, cleanCompletion, type CacheName, type CompletionKind } from './native-model'
 
 export function nativeCraft(): NativeCraft {
@@ -61,7 +61,7 @@ export function nativeUrl(base: string, input: string): string {
  * in, create account) carries a CSRF token, which `createApi` reads once and
  * keeps. The host's cookie jar takes every CSRF cookie the server hands out
  * (signing out rotates it), and the server only mints one for a request that
- * has none, so after a sign-out the kept token no longer matches the cookie
+ * has none, so after a sign-out the saved token no longer matches the cookie
  * the jar sends and the server answers 403. The latest token any response
  * set is remembered and used for such posts instead.
  */
@@ -81,7 +81,7 @@ async function nativeFetch(base: string, input: string, init?: RequestInit): Pro
 }
 
 /** The API client against the server the app was built for (`craft.app.url`). */
-export function nativeApi(session: Session, onSignedOut?: () => void): KeptApi {
+export function nativeApi(session: Session, onSignedOut?: () => void): LibraryApi {
   const base = (nativeCraft().app.url || '').replace(/\/+$/, '')
   return createApi({
     base,

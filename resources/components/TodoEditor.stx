@@ -1,8 +1,8 @@
 <script client>
-  import { focusField } from '../functions/kept/client'
-  import { dayLabel, deadlineLabel } from '../functions/kept/format'
-  import { renderMarkdown, toggleCheckLine } from '../functions/kept/markdown'
-  import { parseTagInput, whenLabel, whenPatch } from '../functions/kept/todos'
+  import { focusField } from '../functions/library/client'
+  import { dayLabel, deadlineLabel } from '../functions/library/format'
+  import { renderMarkdown, toggleCheckLine } from '../functions/library/markdown'
+  import { parseTagInput, whenLabel, whenPatch } from '../functions/library/todos'
 
   const teWs = useStore('workspace')
   const teTasks = useStore('tasks')

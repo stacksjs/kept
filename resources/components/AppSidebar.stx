@@ -1,6 +1,6 @@
 <script client>
-  import { libraryColor, libraryIcon } from '../functions/kept/promptview'
-  import { initials } from '../functions/kept/format'
+  import { libraryColor, libraryIcon } from '../functions/library/promptview'
+  import { initials } from '../functions/library/format'
 
   const sbWs = useStore('workspace')
   const sbTasks = useStore('tasks')

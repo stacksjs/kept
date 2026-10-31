@@ -1,8 +1,8 @@
 import { defineStore, derived, state, useStore } from '@stacksjs/stx'
-import { api, deviceDay } from '../functions/kept/client'
-import { dayLabel, groupUpcoming, localDay } from '../functions/kept/format'
-import { allTags, byOrder, counts, groupLogbook, moveId, newTodoFor, normalizeItem, normalizeTodo, orderChanges, progress, serializeChanges, splitToday, viewItems } from '../functions/kept/todos'
-import type { ChecklistItem, Todo } from '../functions/kept/types'
+import { api, deviceDay } from '../functions/library/client'
+import { dayLabel, groupUpcoming, localDay } from '../functions/library/format'
+import { allTags, byOrder, counts, groupLogbook, moveId, newTodoFor, normalizeItem, normalizeTodo, orderChanges, progress, serializeChanges, splitToday, viewItems } from '../functions/library/todos'
+import type { ChecklistItem, Todo } from '../functions/library/types'
 
 /** A titled run of rows in a pane: Today's two halves, one day of Upcoming, one day of the Logbook. */
 export interface Group {

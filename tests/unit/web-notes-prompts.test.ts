@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'bun:test'
-import { daysLeft, filterNotes, findLinked, groupNotes, matchSnippet, noteTags, normalizeNote, sortNotes, tagCounts, type NoteRow } from '../../resources/functions/kept/notes'
-import { filledSegments, filterPrompts, normalizePrompt, publicLinkUrl, segments } from '../../resources/functions/kept/promptview'
-import type { Note, Prompt } from '../../resources/functions/kept/types'
+import { daysLeft, filterNotes, findLinked, groupNotes, matchSnippet, noteTags, normalizeNote, sortNotes, tagCounts, type NoteRow } from '../../resources/functions/library/notes'
+import { filledSegments, filterPrompts, normalizePrompt, publicLinkUrl, segments } from '../../resources/functions/library/promptview'
+import type { Note, Prompt } from '../../resources/functions/library/types'
 
 const note = (id: number, patch: Partial<Note> = {}): Note => ({ id, title: `Note ${id}`, snippet: '', body: `Note ${id}\nbody`, pinned: false, note_folder_id: null, updated_at: `2026-10-${String(10 + id).padStart(2, '0')}T10:00:00Z`, ...patch })
 
@@ -104,6 +104,6 @@ describe('prompts', () => {
     const row = normalizePrompt({ id: 1, tags: ['a'], favorite: 1, description: null })
     expect(row.favorite).toBe(true)
     expect(row.description).toBe('')
-    expect(publicLinkUrl('https://kept.test/', 'abc')).toBe('https://kept.test/p/abc')
+    expect(publicLinkUrl('https://library.test/', 'abc')).toBe('https://library.test/p/abc')
   })
 })

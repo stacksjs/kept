@@ -23,7 +23,7 @@ export default {
     buildNumber: env.APPLE_BUILD_NUMBER || '1',
     minimumSystemVersion: '13.0',
     category: 'public.app-category.productivity',
-    url: env.LIBRARY_API_URL || env.KEPT_API_URL || 'http://127.0.0.1:3408',
+    url: env.LIBRARY_API_URL || 'http://127.0.0.1:3408',
     nativeScreens: ['Main', 'Settings'],
     nativeScreensDir: 'resources/native',
     initialScreen: 'Main',
