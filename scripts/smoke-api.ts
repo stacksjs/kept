@@ -46,6 +46,8 @@ class Client {
     const password = 'correct-horse-battery-1'
     await this.register({ name, email, password, password_confirmation: password })
     const login = await this.call('POST', '/login', { email, password })
+    if (login.status !== 200 || !login.json?.user)
+      throw new Error(`sign-in as ${email} answered ${login.status}: ${JSON.stringify(login.json).slice(0, 300)}`)
     this.token = login.json.token
     return { id: login.json.user.id, email }
   }

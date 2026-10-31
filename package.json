@@ -63,7 +63,7 @@
     "@stacksjs/env": "^0.75.397",
     "@stacksjs/path": "^0.75.397",
     "@stacksjs/stx": "0.2.769",
-    "bun-query-builder": "^0.3.32",
+    "bun-query-builder": "^0.3.33",
     "stacks": "^0.75.397"
   },
   "workspaces": [
