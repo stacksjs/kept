@@ -21,7 +21,7 @@
   })
 
   // Built from pieces: a literal pair of braces in a template attribute is read as a mustache.
-  const peChip = (name) => '{' + '{' + name + '}' + '}'
+  const peChip = (name) => '{{' + name + '}}'
   function peBodyInput(event) {
     pePrompts.change({ body: event.target.value })
     const lib = pePrompts.library()
