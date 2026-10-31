@@ -81,6 +81,8 @@ storage/framework/defaults/views/dashboard/.discovered-models.json
 storage/framework/down
 storage/framework/coming-soon
 storage/cloud/
+# The native macOS app (config/desktop.ts): the .app, its AppKit host and build scratch.
+storage/framework/desktop/
 
 # Database dumps from `buddy db:backup`, which writes here by default. A dump is
 # every row the database holds, so committing one publishes the application's
