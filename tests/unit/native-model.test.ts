@@ -199,6 +199,7 @@ describe('native prompts', () => {
 describe('native notes', () => {
   it('lists the check lines with their line numbers', () => {
     expect(checkLines('# Trip\n- [ ] Flights\n- [x] Passport\nplain')).toEqual([{ line: 1, text: 'Flights', done: false }, { line: 2, text: 'Passport', done: true }])
+    expect(checkLines('- [ ] Pack the **blue** bag and *one* `tag`')[0]!.text).toBe('Pack the blue bag and one tag')
   })
 
   it('toggles the last line in and out of a checklist', () => {

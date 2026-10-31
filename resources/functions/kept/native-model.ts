@@ -397,12 +397,17 @@ const CHECK_LINE = /^(\s*)[-*+]\s+\[([ xX])\]\s?(.*)$/
 
 export interface CheckLine { line: number, text: string, done: boolean }
 
+/** Inline markdown without its markers, for a label that is not drawn as markdown. */
+export function plainInline(text: string): string {
+  return text.replace(/\*\*([^*]+)\*\*/g, '$1').replace(/(^|[^*\w])\*([^*\s][^*]*)\*/g, '$1$2').replace(/(^|[^_\w])_([^_\s][^_]*)_/g, '$1$2').replace(/`([^`]+)`/g, '$1')
+}
+
 /** The note's `- [ ]` lines, for the checklist strip under the editor. */
 export function checkLines(body: string): CheckLine[] {
   const lines: CheckLine[] = []
   body.split('\n').forEach((text, line) => {
     const match = CHECK_LINE.exec(text)
-    if (match) lines.push({ line, text: match[3] ?? '', done: match[2] !== ' ' })
+    if (match) lines.push({ line, text: plainInline(match[3] ?? ''), done: match[2] !== ' ' })
   })
   return lines
 }

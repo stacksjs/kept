@@ -7,30 +7,38 @@ what was tried and what happened, so it can be fixed at the source.
 
 ### Open
 
-- **The host reports no caret or selection.** Notes formatting (Title, Heading,
-  Bold, Italic, List, Checklist) and inline completions act on the end of the text,
-  because `onChangeText` carries only the text. A selection range in the event and
-  a way to set it would let formatting wrap the selection and completions follow the
-  caret.
+- **Escape reaches no screen handler.** The driver's `key escape` sends
+  `cancelOperation:`, but the host fires no event for it on a text input or a
+  sheet, so Escape cannot close the open to-do or a sheet. An `@cancel` (or
+  `@key-press` with the key) event would close it.
+- **`titlebarStyle: transparent` hides the title but the content does not run
+  under the bar** (no `.fullSizeContentView`): the sidebar's vibrancy stops below a
+  white band and the traffic lights sit over that band. Not closer to Things until
+  the content runs under the bar.
 - **Rendering cost per bound node is high in zig-js.** Swapping the to-do list for
-  Upcoming (about 130 nodes) takes about 0.7 s, All Notes (about 180) about 1.3 s,
-  measured from the command to the text appearing in `state.json`. Each component
-  instance costs about 80 to 100 ms, so rows are drawn inline instead of as
-  components. A false `:if` that holds components or a loop is still built (stx
-  skips deferring those), so per-row branches became `display` toggles and the
-  in-place editor is drawn once between two loops.
-- **No shadow on Mac views.** The open to-do card has a hairline border instead of
-  Things' soft shadow.
-- **Sidebar rows are 32 pt with 13 pt labels**, set by the host's `NSOutlineView`;
-  Things uses 24 pt rows with 15 pt labels. A row height and font size prop on
-  `NativeSidebar` would close it.
-- **The window has a standard title bar.** Things draws its traffic lights inside
-  the sidebar (`titlebarStyle: transparent`, full-size content); that is
-  `craft-app.json`'s setting.
-- **The test driver cannot press keys.** Return, Tab (accepting ghost text) and
-  Escape can only be checked by hand or through computer use.
+  Upcoming (about 130 nodes) takes about 0.7 s, All Notes (about 180) about 1.3 s.
+  Each component instance costs about 80 to 100 ms, so rows are drawn inline. A
+  false `:if` that holds components or a loop is still built, so per-row branches
+  are `display` toggles and the open to-do is drawn once between two loops.
+- **`POST /api/complete` answers 500** (`Cannot find module .../Actions/AI/CompleteAction.ts`
+  under `@stacksjs/defaults`). Ghost text fails silently and pauses for five
+  minutes; it was verified against a local stand-in that returns a fixed completion.
+- **The CSRF token `createApi` keeps goes stale after a sign-out** (`api.ts` seeds it
+  once; signing out rotates the cookie, and the server mints a new one only for a
+  request without one). Signing in again then got 403 Forbidden. The native
+  transport (`native-kept.ts`) now remembers the latest token any response set and
+  uses it for posts made before sign-in; the shared client would be the better home.
 
 ### Fixed in the host (verified)
+
+- Caret and selection (`@selection-change`, `:selection`): formatting acts on the
+  caret line or the selection, and completions use the text around the caret.
+- `markdown` on multi-line TextInput: notes, prompt bodies and to-do notes draw
+  headings, bold, italic, code, quotes, lists and struck-through done items.
+- `NativeSidebar rowHeight="24" labelFontSize="15"` matches Things' sidebar.
+- `shadow-md` draws a real shadow: the open to-do card matches Things.
+- The driver's `key` action: Return in quick entry, a checklist field and a to-do
+  title, and Tab accepting a ghost completion, all verified.
 
 - The Keychain token survives a relaunch, a Keychain read can no longer block on a
   permission prompt, and development builds are signed with a stable identity so a
