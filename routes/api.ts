@@ -60,3 +60,8 @@ route.post('/prompt-libraries/{id}/shares', 'Actions/Shares/LibraryShareCreateAc
 route.post('/prompt-libraries/{id}/link', 'Actions/Shares/LibraryLinkAction').middleware('auth')
 // Opened from a link anyone can hold: read-only, no account.
 route.get('/shared/{token}', 'Actions/Shares/SharedLibraryAction')
+
+// Ghost-text completions for the note, prompt and to-do editors: the framework's
+// default action, mounted here as POST /api/complete. Answers { completion }, or
+// '' when no AI driver is configured, so the editors stay quiet without one.
+route.post('/complete', 'Actions/AI/CompleteAction').middleware('auth')

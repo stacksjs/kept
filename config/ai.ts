@@ -22,5 +22,12 @@ export default {
     // 'global.anthropic.claude-sonnet-5-5',
   ],
 
+  // Inline ghost-text completions in the note, prompt and to-do editors
+  // (POST /api/complete). They run on the default driver above with its fast
+  // model class, and quietly answer nothing while no driver is configured.
+  // To use Bedrock Nova instead of the default driver:
+  //   completion: { driver: 'bedrock', model: 'amazon.nova-lite-v1:0' }
+  completion: { enabled: true },
+
   deploy: true, // deploys AI endpoints
 } satisfies AiConfig
