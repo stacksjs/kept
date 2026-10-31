@@ -136,13 +136,13 @@
   </nav>
 
   <div class="k-sbar">
-    <MoreMenu :up="true" label="Add new" kind="add" text="New List">
+    <MoreMenu :up="true" label="Add new" icon="i-hugeicons-plus-sign" text="New List">
       <button type="button" role="menuitem" @click="sbStart('project')"><i class="i-hugeicons-task-add-01 k-ico" aria-hidden="true"></i>New project</button>
       <button type="button" role="menuitem" @click="sbStart('area')"><i class="i-hugeicons-folder-add k-ico" aria-hidden="true"></i>New area</button>
       <button type="button" role="menuitem" @click="sbStart('folder')"><i class="i-hugeicons-note-add k-ico" aria-hidden="true"></i>New notes folder</button>
       <button type="button" role="menuitem" @click="sbStart('library')"><i class="i-hugeicons-book-02 k-ico" aria-hidden="true"></i>New prompt library</button>
     </MoreMenu>
-    <MoreMenu :up="true" label="Account and appearance" kind="settings">
+    <MoreMenu :up="true" label="Account and appearance" icon="i-hugeicons-sliders-horizontal">
       <div class="k-menu-label" :text="sbName()"></div>
       <button type="button" role="menuitemradio" :aria-checked="sbPref() === 'auto' ? 'true' : 'false'" @click="sbSetTheme('auto')"><i class="i-hugeicons-computer k-ico" aria-hidden="true"></i>System appearance</button>
       <button type="button" role="menuitemradio" :aria-checked="sbPref() === 'light' ? 'true' : 'false'" @click="sbSetTheme('light')"><i class="i-hugeicons-sun-03 k-ico" aria-hidden="true"></i>Light</button>

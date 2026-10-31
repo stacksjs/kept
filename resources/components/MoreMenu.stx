@@ -1,12 +1,10 @@
 <script>
-interface MoreMenuProps { label?: string, kind?: 'more' | 'add' | 'settings', text?: string, up?: boolean }
-const { label = 'More', kind = 'more', text = '', up = false } = defineProps<MoreMenuProps>()
+interface MoreMenuProps { label?: string, icon?: string, text?: string, up?: boolean }
+const { label = 'More', icon = 'i-hugeicons-more-horizontal', text = '', up = false } = defineProps<MoreMenuProps>()
 </script>
 <script client>
   const mmLabel = useReactiveProp('label', 'More')
-  // Icon classes are written out here, in full: the CSS generator reads class names from the source, not from props.
-  const mmKind = useReactiveProp('kind', 'more')
-  const mmIcon = derived(() => (mmKind() === 'add' ? 'i-hugeicons-plus-sign' : mmKind() === 'settings' ? 'i-hugeicons-sliders-horizontal' : 'i-hugeicons-more-horizontal'))
+  const mmIcon = useReactiveProp('icon', 'i-hugeicons-more-horizontal')
   const mmText = useReactiveProp('text', '')
   const mmUp = useReactiveProp('up', false)
   const mmOpen = state(false)
