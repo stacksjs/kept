@@ -1,51 +1,60 @@
 # Native friction
 
-Framework and host gaps found while building Kept's Mac app. Each entry says
+Framework and host gaps found while building Library's Mac app. Each entry says
 what was tried and what happened, so it can be fixed at the source.
 
 ## Screens
 
-- **Keychain token is not found on the next launch** (craft `CraftMacRuntime.swift`,
-  `CraftMacKeychain`). An unsigned or ad-hoc build writes `auth.token` to the login
-  keychain after `SecItemAdd` returns -34018 on the data-protection keychain. Most likely, on the
-  next launch `get` asks the data-protection keychain first, gets "not found" rather
-  than -34018, never falls back, and `craft.secureStorage.getSync('auth.token')`
-  returns null. Seen: `security find-generic-password -s dev.craft.native.secure -a auth.token`
-  finds the item, yet a relaunch shows the sign-in screen. Within one run it works,
-  because the fallback flag is then already set. This also means the offline cold
-  start (launch from the saved copy with no network) cannot be shown until it is fixed.
-- **Single-line TextInput has no submit or blur** (`CraftMacBox`). Only the
-  multiline `NSTextView` fires `onSubmitEditing`; an `NSTextField` gets no
-  `control(_:textView:doCommandBy:)` or `controlTextDidEndEditing`, so `@submit`
-  and `@blur` never fire. Kept uses `:multiline="true"` one-line inputs for Return
-  (quick entry, checklist) and debounced saves instead of save-on-blur.
-- **A sheet is sized once, when it appears** (`CraftMacRenderer.render`, Modal).
-  Rows added afterwards are clipped. Kept loads history and sharing before opening
-  their sheets and gives the share sheet a minimum height.
-- **Cross-axis margins are ignored** (`CraftMacFlow.layoutBoxes`): `mx-4` on a
-  child of a column has no effect, only the main-axis start and end margins do.
-  Kept wraps such rows in a padded View.
-- **Shrink-wrapped Text clips its last word** (`CraftMacBox.measure`): a Text in
-  an `items-center` column is measured a few points narrower than the wrapping
-  `NSTextField` needs, wraps, and the measured one-line height hides the second
-  line ("Sign in to Kept" drew as "Sign in"). Stretching the Text avoids it.
-- **A component prop named like the caller's loop variable is empty**: with
-  `<Row :for="todo in items" :todo="todo" />`, `useReactiveProp('todo')` inside
-  `Row` never saw a value and every binding in the component stayed blank, with no
-  error. Renaming the prop (`:item="todo"`) fixed it.
-- **Template handlers receive a signal's value, not the signal**: `@input="edit(dTitle, $event)"`
-  passed a string, so `field.set` threw (`[STX] Handler error ... field.set is not a function`,
-  only in stderr). Kept names fields with strings instead.
-- **Mustaches inside a screen's script are template syntax**: a string literal
-  `'Write about {{topic}}.'` in `<script client>` was replaced with `undefined`.
-  Kept keeps such strings in a TypeScript module.
-- **No text decoration on Mac Text**: `line-through` is not applied, so finished
-  to-dos are shown in the secondary label colour instead of struck through.
-- **Custom menus go after Edit**: `setMenus` inserts File, View and Item between
-  Edit and Window, so File is not the first menu after the app menu as on a
-  standard Mac app.
-- **No DatePicker on the Mac host** (`Unsupported native control`): dates are
-  typed as `YYYY-MM-DD` (or `tomorrow`).
-- **Sheets are not in the driver's screenshot**: `screenshot` renders the window's
-  content view only; a sheet shows as the dimmed parent. `screencapture -l <window id>`
-  captures it.
+### Open
+
+- **The host reports no caret or selection.** Notes formatting (Title, Heading,
+  Bold, Italic, List, Checklist) and inline completions act on the end of the text,
+  because `onChangeText` carries only the text. A selection range in the event and
+  a way to set it would let formatting wrap the selection and completions follow the
+  caret.
+- **Rendering cost per bound node is high in zig-js.** Swapping the to-do list for
+  Upcoming (about 130 nodes) takes about 0.7 s, All Notes (about 180) about 1.3 s,
+  measured from the command to the text appearing in `state.json`. Each component
+  instance costs about 80 to 100 ms, so rows are drawn inline instead of as
+  components. A false `:if` that holds components or a loop is still built (stx
+  skips deferring those), so per-row branches became `display` toggles and the
+  in-place editor is drawn once between two loops.
+- **No shadow on Mac views.** The open to-do card has a hairline border instead of
+  Things' soft shadow.
+- **Sidebar rows are 32 pt with 13 pt labels**, set by the host's `NSOutlineView`;
+  Things uses 24 pt rows with 15 pt labels. A row height and font size prop on
+  `NativeSidebar` would close it.
+- **The window has a standard title bar.** Things draws its traffic lights inside
+  the sidebar (`titlebarStyle: transparent`, full-size content); that is
+  `craft-app.json`'s setting.
+- **The test driver cannot press keys.** Return, Tab (accepting ghost text) and
+  Escape can only be checked by hand or through computer use.
+
+### Fixed in the host (verified)
+
+- The Keychain token survives a relaunch, a Keychain read can no longer block on a
+  permission prompt, and development builds are signed with a stable identity so a
+  rebuild no longer asks again. (Ad-hoc builds used to hang on a SecurityAgent
+  prompt after every rebuild.)
+- Single-line TextInput fires `onSubmitEditing` and `onBlur`; Return in a to-do's
+  title, a checklist field or the share email acts without one-line multiline
+  workarounds.
+- `textDecorationLine: line-through` draws on Mac Text: finished to-dos and check
+  lines are struck through.
+- A custom "File" menu comes first after the app menu.
+- `ghostText` on a multi-line TextInput draws after the caret, and the bundle maps
+  `@accept-completion` to `onAcceptCompletion`.
+- Cross-axis margins, the shrink-wrapped Text measure, and sheets that follow their
+  content height (the share sheet's minimum height and the padded wrappers were
+  removed).
+
+### Template traps
+
+- A component prop named like the caller's `:for` variable stays empty
+  (`<Row :for="todo in items" :todo="todo" />`); name the prop differently.
+- Template handlers receive a signal's value, not the signal: name fields with
+  strings (`editTodo('title', $event)`).
+- `{{ }}` inside a string in a screen's `<script client>` is template syntax and
+  becomes `undefined`; keep such strings in a TypeScript module.
+- The test driver's screenshot covers the window's content view only; a sheet shows
+  as the dimmed parent. `screencapture -l <window id>` captures it.

@@ -8,17 +8,18 @@ const selected = useReactiveProp('selected', false)
 const fill = useReactiveProp('fill', 'transparent')
 const rowId = useReactiveProp('rowId', '')
 const emit = defineEmits(['choose', 'menu'])
+const shown = on => (on ? 'flex' : 'none')
 </script>
 <Pressable class="flex-col gap-[1px] px-[14px] py-[8px] rounded-[7px]" :style="{backgroundColor: selected() ? fill() : 'transparent'}" :testID="rowId()" @click="emit('choose')" @contextmenu="emit('menu')">
   <View class="flex-row gap-[5px] items-center">
-    <Icon :if="symbol()" :symbol="symbol()" class="shrink-0 h-[10px] w-[10px]" style="color: #e8a10c" />
+    <Icon :symbol="symbol() || 'pin.fill'" class="shrink-0 h-[10px] w-[10px]" :style="{display: shown(symbol()), color: '#e8a10c'}" />
     <Text class="flex-1 font-bold text-[13px]" :numberOfLines="1" :text="title() || 'New Note'" />
   </View>
   <View class="flex-row gap-[7px]">
-    <Text :if="meta()" class="shrink-0 text-[12px]" style="color: label" :numberOfLines="1" :text="meta()" />
+    <Text class="shrink-0 text-[12px]" :style="{display: shown(meta()), color: 'label'}" :numberOfLines="1" :text="meta()" />
     <Text class="flex-1 text-[12px]" style="color: secondaryLabel" :numberOfLines="1" :text="subtitle() || ' '" />
   </View>
-  <View :if="folder()" class="flex-row gap-[4px] items-center pt-[1px]">
+  <View class="flex-row gap-[4px] items-center pt-[1px]" :style="{display: shown(folder())}">
     <Icon symbol="folder" class="h-[10px] w-[11px]" style="color: secondaryLabel" />
     <Text class="text-[11.5px]" style="color: secondaryLabel" :numberOfLines="1" :text="folder()" />
   </View>

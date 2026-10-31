@@ -2,7 +2,7 @@
 import { today as deviceDay } from '../functions/kept/api'
 import { toggleCheckLine } from '../functions/kept/markdown'
 import { apiOrigin, desktop, keychainSession, nativeApi, nativeCraft, palette, readCache, requestCompletion, saveAccount, savedAccount, writeCache } from '../functions/kept/native-kept'
-import { acceptCompletion, appendCheckLine, checkLines, COMPLETION_DELAY, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, NEW_PROMPT_BODY, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, notesIn, parseDayField, parseNav, projectProgress, promptVariables, quickEntry, REPEATS, resolveDay, rowMarks, shareLink, SMART_LISTS, sidebarSections, todoBlocks, toggleChecklist, whenChip } from '../functions/kept/native-model'
+import { acceptCompletion, appendCheckLine, checkLines, COMPLETION_DELAY, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, NEW_PROMPT_BODY, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, notesIn, parseDayField, parseNav, projectProgress, promptVariables, splitBlocks, blockHeader, quickEntry, REPEATS, resolveDay, rowMarks, shareLink, SMART_LISTS, sidebarSections, todoBlocks, toggleChecklist, whenChip } from '../functions/kept/native-model'
 import { daysLeft, normalizeNote } from '../functions/kept/notes'
 import { filterPrompts, normalizePrompt } from '../functions/kept/promptview'
 import { counts, normalizeTodo, parseTagInput, serializeChanges, whenPatch } from '../functions/kept/todos'
@@ -89,6 +89,12 @@ const headerSymbol = derived(() => smart()?.icon ?? (view()?.kind === 'area' ? '
 const headerColor = derived(() => smart()?.color ?? (view()?.kind === 'area' ? '#8e8e93' : '#2f6fe4'))
 const projectTitle = id => sidebar()?.projects.find(p => p.id === id)?.title
 const blocks = derived(() => view() ? todoBlocks(view(), open(), logbook(), today(), sidebar()?.projects ?? [], search(), progress()) : [])
+const cut = derived(() => splitBlocks(blocks(), todoId()))
+const current = derived(() => cut().open)
+/** Blocks ready to draw: the heading worked out once, and each row's marks, so the row template has no branches. */
+const ready = list => list.map(b => ({ ...b, header: blockHeader(b), rows: b.items.map(todo => ({ todo, marks: marksFor(todo, b.kind === 'project' || (b.kind === 'rest' && !!b.projectId)) })) }))
+const beforeBlocks = derived(() => ready(cut().before))
+const afterBlocks = derived(() => ready(cut().after))
 const listCount = derived(() => blocks().reduce((total, b) => total + b.items.length, 0))
 const canAdd = derived(() => !!view() && !(view().kind === 'list' && view().name === 'logbook'))
 const selectedTodo = derived(() => open().find(t => t.id === todoId()) ?? logbook().find(t => t.id === todoId()) ?? null)
@@ -1030,83 +1036,114 @@ onMount(async () => {
           </View>
         </View>
 
-        <View :for="b in blocks()" :key="b.key" class="flex-col">
-          <View :if="b.kind === 'project'" class="flex-row gap-[8px] items-center mb-[4px] pb-[6px] pl-[10px] pt-[22px] border-b" :style="{borderColor: colors().hairline}">
-            <Icon :symbol="b.symbol" class="h-[18px] w-[18px]" style="color: #2f6fe4" />
-            <Text class="font-bold text-[16px]" :numberOfLines="1" :text="b.label" />
-          </View>
-          <View :if="b.kind === 'evening'" class="flex-row gap-[7px] items-center mb-[4px] pb-[6px] pl-[11px] pt-[22px] border-b" :style="{borderColor: colors().hairline}">
-            <Icon symbol="moon.fill" class="h-[15px] w-[15px]" style="color: #4f6bd8" />
-            <Text class="font-bold text-[16px]" :text="b.label" />
-          </View>
-          <View :if="b.kind === 'day'" class="flex-row gap-[6px] items-end pb-[4px] pl-[12px] pt-[22px]">
-            <Text class="font-bold text-[24px]" :text="b.number" />
+        <View :for="b in beforeBlocks()" :key="b.key" class="flex-col" :testID="'block-' + b.key">
+          <View class="flex-row gap-[8px] items-end pl-[12px] pr-[2px]" :style="{display: b.header.show ? 'flex' : 'none', paddingTop: b.header.number ? 22 : b.header.size >= 20 ? 24 : 20, paddingBottom: b.header.ruleBelow ? 6 : 4, marginBottom: b.header.ruleBelow ? 4 : 0 + b.header.gap, borderBottomWidth: b.header.ruleBelow ? 1 : 0, borderColor: colors().hairline}">
+            <Icon :symbol="b.header.symbol || 'circle'" class="mb-[2px] h-[17px] w-[17px]" :style="{display: b.header.symbol ? 'flex' : 'none', color: b.header.symbolColor}" />
+            <Text class="font-bold text-[24px]" :style="{display: b.header.number ? 'flex' : 'none'}" :text="b.header.number" />
             <View class="flex-1 flex-col gap-[3px]">
-              <View class="h-[1px]" :style="{backgroundColor: colors().hairline}" />
-              <Text class="pb-[2px] font-bold text-[15px]" style="color: secondaryLabel" :text="b.label" />
+              <View class="h-[1px]" :style="{display: b.header.ruleAbove ? 'flex' : 'none', backgroundColor: colors().hairline}" />
+              <Text class="font-bold" :numberOfLines="1" :style="{fontSize: b.header.size, color: b.header.muted ? 'secondaryLabel' : 'label', paddingBottom: b.header.number ? 2 : 0}" :text="b.header.label" />
             </View>
           </View>
-          <View :if="b.kind === 'month'" class="flex-row gap-[8px] items-end pb-[4px] pl-[12px] pt-[24px]">
-            <Text class="font-bold text-[20px]" :text="b.label" />
-            <View class="flex-1 mb-[8px] h-[1px]" :style="{backgroundColor: colors().hairline}" />
+          <View :for="r in b.rows" :key="r.todo.id" class="flex-row gap-[9px] items-center px-[12px] h-[28px] rounded-[6px]" :style="{backgroundColor: 'transparent'}" :testID="'row-' + r.todo.id">
+            <Pressable class="items-center justify-center shrink-0 h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: !!(r.todo.completed_at || r.todo.canceled_at) ? colors().accent : colors().checkbox, backgroundColor: !!(r.todo.completed_at || r.todo.canceled_at) ? colors().accent : 'transparent'}" :accessibilityLabel="!!(r.todo.completed_at || r.todo.canceled_at) ? 'Mark as not done' : 'Complete'" :testID="'check-' + r.todo.id" @click="toggleTodo(r.todo)">
+              <Icon symbol="checkmark" class="h-[9px] w-[9px]" :style="{display: (!!(r.todo.completed_at || r.todo.canceled_at) ? 'flex' : 'none'), color: '#ffffff'}" />
+            </Pressable>
+            <Pressable class="flex-1 flex-row gap-[6px] items-center h-[28px] min-w-0" :testID="'todo-' + r.todo.id" @click="openTodo(r.todo)" @contextmenu="todoMenu(r.todo)">
+              <Icon symbol="star.fill" class="shrink-0 h-[12px] w-[12px]" :style="{display: (r.marks.star ? 'flex' : 'none'), color: '#f7c600'}" />
+              <Icon symbol="moon.fill" class="shrink-0 h-[11px] w-[11px]" :style="{display: (r.marks.evening ? 'flex' : 'none'), color: '#4f6bd8'}" />
+              <Text class="shrink min-w-[60px] text-[15px]" :numberOfLines="1" :style="{color: !!(r.todo.completed_at || r.todo.canceled_at) ? 'secondaryLabel' : 'label', textDecorationLine: !!(r.todo.completed_at || r.todo.canceled_at) ? 'line-through' : 'none'}" :text="r.todo.title || 'New To-Do'" />
+              <Icon symbol="doc" class="shrink-0 h-[11px] w-[10px]" :style="{display: (r.marks.notes ? 'flex' : 'none'), color: 'secondaryLabel'}" />
+              <Icon symbol="repeat" class="shrink-0 h-[10px] w-[10px]" :style="{display: (r.marks.repeat ? 'flex' : 'none'), color: 'secondaryLabel'}" />
+              <Text class="shrink-0 text-[12px]" :numberOfLines="1" :style="{display: (r.marks.project ? 'flex' : 'none'), color: 'secondaryLabel'}" :text="r.marks.project || ''" />
+              <View class="flex-1" />
+              <Text class="shrink-0 text-[12px]" :style="{display: (r.marks.checklist ? 'flex' : 'none'), color: 'secondaryLabel'}" :text="r.marks.checklist || ''" />
+              <Text class="shrink-0 px-[6px] h-[17px] text-[11px] rounded-[8px]" :numberOfLines="1" :style="{display: (r.marks.tags?.length ? 'flex' : 'none'), color: 'secondaryLabel', backgroundColor: colors().hover}" :text="(r.marks.tags || []).join('  ')" />
+              <Text class="shrink-0 text-[12px]" :style="{display: (r.marks.date ? 'flex' : 'none'), color: 'secondaryLabel'}" :text="r.marks.date || ''" />
+              <Icon symbol="flag.fill" class="h-[10px] w-[10px]" :style="{display: (r.marks.deadline ? 'flex' : 'none'), color: r.marks.overdue ? '#e5484d' : '#8e8e93'}" />
+              <Text class="text-[12px]" :style="{display: (r.marks.deadline ? 'flex' : 'none'), color: r.marks.overdue ? '#e5484d' : 'secondaryLabel'}" :text="r.marks.deadline || ''" />
+            </Pressable>
           </View>
-          <Text :if="b.kind === 'logday'" class="pb-[4px] pl-[12px] pt-[16px] font-bold text-[13px]" style="color: secondaryLabel" :text="b.label" />
-          <View :if="b.kind === 'day' && !b.items.length" class="h-[26px]" />
-
-          <View :for="todo in b.items" :key="todo.id" class="flex-col">
-            <KeptMacTodoRow :if="todo.id !== todoId()" :item="todo" :marks="marksFor(todo, b.kind === 'project')" :selected="false" :colors="colors()" @choose="openTodo(todo)" @toggle="toggleTodo(todo)" @menu="todoMenu(todo)" />
-            <View :if="todo.id === todoId()" class="flex-col gap-[4px] my-[10px] pb-[8px] pt-[10px] px-[12px] border rounded-[12px]" :style="{backgroundColor: colors().card, borderColor: colors().hairline}" testID="todo-editor">
-              <View class="flex-row gap-[9px] items-center">
-                <Pressable class="items-center justify-center shrink-0 h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: todo.completed_at ? colors().accent : colors().checkbox, backgroundColor: todo.completed_at ? colors().accent : 'transparent'}" testID="detail-check" @click="toggleTodo(todo)">
-                  <Icon :if="todo.completed_at" symbol="checkmark" class="h-[9px] w-[9px]" style="color: #ffffff" />
-                </Pressable>
-                <View class="flex-1"><TextInput class="h-[24px] text-[15px]" :bordered="false" :value="dTitle()" placeholder="New To-Do" @input="editTodo('title', $event)" @submit="closeTodo()" @blur="flushTodo()" testID="detail-title" /></View>
-              </View>
-              <View class="pl-[14px]">
-                <TextInput class="text-[14px]" :style="{height: notesHeight()}" :multiline="true" :bordered="false" :value="dNotes()" placeholder="Notes" :ghostText="ghostFor('todo')" @input="editTodo('notes', $event)" @blur="flushTodo()" @accept-completion="acceptGhost('todo', $event)" testID="detail-notes" />
-              </View>
-              <View :if="showChecklist() || todo.checklist.length" class="flex-col pl-[23px] pr-[4px] pt-[2px]">
-                <View :for="item in todo.checklist" :key="item.id" class="flex-row gap-[8px] items-center h-[26px] border-b" :style="{borderColor: colors().hairline}">
-                  <Pressable class="items-center justify-center h-[12px] w-[12px] border rounded-[6px]" :style="{borderColor: item.done ? colors().accent : colors().checkbox, backgroundColor: item.done ? colors().accent : 'transparent'}" :testID="'checkitem-' + item.id" @click="toggleCheckItem(item)">
-                    <Icon :if="item.done" symbol="checkmark" class="h-[7px] w-[7px]" style="color: #ffffff" />
-                  </Pressable>
-                  <Text class="flex-1 text-[13px]" :numberOfLines="1" :style="{color: item.done ? 'secondaryLabel' : 'label', textDecorationLine: item.done ? 'line-through' : 'none'}" :text="item.title" />
-                  <ToolbarButton label="Remove item" symbol="xmark" class="text-[11px]" @click="deleteCheckItem(item)" />
-                </View>
-                <View class="flex-row gap-[8px] items-center h-[26px]">
-                  <View class="h-[12px] w-[12px] border rounded-[6px]" :style="{borderColor: colors().checkbox}" />
-                  <View class="flex-1"><TextInput class="h-[22px] text-[13px]" :bordered="false" :value="dCheck()" placeholder="Add checklist item" @input="dCheck.set(eventText($event))" @submit="addCheckItem()" testID="detail-check-input" /></View>
-                </View>
-              </View>
-              <View :if="showDate()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
-                <Icon symbol="calendar" class="h-[13px] w-[13px]" style="color: #f2404f" />
-                <View class="w-[160px]"><TextInput class="h-[22px] text-[13px]" :value="dStart()" placeholder="2026-11-04 or tomorrow" @input="editTodo('start', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-start" /></View>
-              </View>
-              <View :if="showDeadline()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
-                <Icon symbol="flag.fill" class="h-[12px] w-[12px]" style="color: #e5484d" />
-                <Text class="text-[13px]" style="color: secondaryLabel" :text="'Deadline'" />
-                <View class="w-[160px]"><TextInput class="h-[22px] text-[13px]" :value="dDeadline()" placeholder="2026-11-20" @input="editTodo('deadline', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-deadline" /></View>
-              </View>
-              <View :if="showTags()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
-                <Icon symbol="tag" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
-                <View class="flex-1"><TextInput class="h-[22px] text-[13px]" :value="dTags()" placeholder="Tags, separated by commas" @input="editTodo('tags', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-tags" /></View>
-              </View>
-              <Text :if="dHint()" class="pl-[19px] text-[11.5px]" style="color: secondaryLabel" :text="dHint()" testID="detail-hint" />
-              <View class="flex-row gap-[2px] items-center pl-[13px] pt-[8px]">
-                <Pressable class="flex-row gap-[6px] items-center px-[6px] h-[26px] rounded-[6px]" testID="detail-when" @click="whenMenu(todo)">
-                  <Icon :symbol="chip()?.symbol || 'calendar'" class="h-[14px] w-[14px]" :style="{color: chip()?.color || '#8e8e93'}" />
-                  <Text class="text-[14px]" :style="{color: chip()?.label === 'When' ? 'secondaryLabel' : 'label'}" :text="chip()?.label || 'When'" />
-                </Pressable>
-                <Pressable :if="todo.repeat && todo.repeat !== 'none'" class="flex-row gap-[4px] items-center px-[6px] h-[26px]" testID="detail-repeat" @click="repeatMenu(todo)">
-                  <Icon symbol="repeat" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
-                  <Text class="text-[13px]" style="color: secondaryLabel" :text="REPEATS.find(r => r.value === todo.repeat)?.label || ''" />
-                </Pressable>
-                <View class="flex-1" />
-                <ToolbarButton label="Tags" style="color: #a1a1a6" symbol="tag" testID="detail-tags-button" @click="showTags.set(!showTags())" />
-                <ToolbarButton label="Checklist" style="color: #a1a1a6" symbol="checklist" testID="detail-checklist-button" @click="openChecklist()" />
-                <ToolbarButton label="Deadline" style="color: #a1a1a6" symbol="flag" testID="detail-deadline-button" @click="showDeadline.set(!showDeadline())" />
-              </View>
+        </View>
+        <View :if="current()" class="flex-col gap-[4px] my-[10px] pb-[8px] pt-[10px] px-[12px] border rounded-[12px]" :style="{backgroundColor: colors().card, borderColor: colors().hairline}" testID="todo-editor">
+          <View class="flex-row gap-[9px] items-center">
+            <Pressable class="items-center justify-center shrink-0 h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: current()?.completed_at ? colors().accent : colors().checkbox, backgroundColor: current()?.completed_at ? colors().accent : 'transparent'}" testID="detail-check" @click="toggleTodo(current())">
+              <Icon :if="current()?.completed_at" symbol="checkmark" class="h-[9px] w-[9px]" style="color: #ffffff" />
+            </Pressable>
+            <View class="flex-1"><TextInput class="h-[24px] text-[15px]" :bordered="false" :value="dTitle()" placeholder="New To-Do" @input="editTodo('title', $event)" @submit="closeTodo()" @blur="flushTodo()" testID="detail-title" /></View>
+          </View>
+          <View class="pl-[14px]">
+            <TextInput class="text-[14px]" :style="{height: notesHeight()}" :multiline="true" :bordered="false" :value="dNotes()" placeholder="Notes" :ghostText="ghostFor('todo')" @input="editTodo('notes', $event)" @blur="flushTodo()" @accept-completion="acceptGhost('todo', $event)" testID="detail-notes" />
+          </View>
+          <View :if="showChecklist() || (current()?.checklist || []).length" class="flex-col pl-[23px] pr-[4px] pt-[2px]">
+            <View :for="item in (current()?.checklist || [])" :key="item.id" class="flex-row gap-[8px] items-center h-[26px] border-b" :style="{borderColor: colors().hairline}">
+              <Pressable class="items-center justify-center h-[12px] w-[12px] border rounded-[6px]" :style="{borderColor: item.done ? colors().accent : colors().checkbox, backgroundColor: item.done ? colors().accent : 'transparent'}" :testID="'checkitem-' + item.id" @click="toggleCheckItem(item)">
+                <Icon :if="item.done" symbol="checkmark" class="h-[7px] w-[7px]" style="color: #ffffff" />
+              </Pressable>
+              <Text class="flex-1 text-[13px]" :numberOfLines="1" :style="{color: item.done ? 'secondaryLabel' : 'label', textDecorationLine: item.done ? 'line-through' : 'none'}" :text="item.title" />
+              <ToolbarButton label="Remove item" symbol="xmark" class="text-[11px]" @click="deleteCheckItem(item)" />
             </View>
+            <View class="flex-row gap-[8px] items-center h-[26px]">
+              <View class="h-[12px] w-[12px] border rounded-[6px]" :style="{borderColor: colors().checkbox}" />
+              <View class="flex-1"><TextInput class="h-[22px] text-[13px]" :bordered="false" :value="dCheck()" placeholder="Add checklist item" @input="dCheck.set(eventText($event))" @submit="addCheckItem()" testID="detail-check-input" /></View>
+            </View>
+          </View>
+          <View :if="showDate()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
+            <Icon symbol="calendar" class="h-[13px] w-[13px]" style="color: #f2404f" />
+            <View class="w-[160px]"><TextInput class="h-[22px] text-[13px]" :value="dStart()" placeholder="2026-11-04 or tomorrow" @input="editTodo('start', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-start" /></View>
+          </View>
+          <View :if="showDeadline()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
+            <Icon symbol="flag.fill" class="h-[12px] w-[12px]" style="color: #e5484d" />
+            <Text class="text-[13px]" style="color: secondaryLabel" :text="'Deadline'" />
+            <View class="w-[160px]"><TextInput class="h-[22px] text-[13px]" :value="dDeadline()" placeholder="2026-11-20" @input="editTodo('deadline', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-deadline" /></View>
+          </View>
+          <View :if="showTags()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
+            <Icon symbol="tag" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
+            <View class="flex-1"><TextInput class="h-[22px] text-[13px]" :value="dTags()" placeholder="Tags, separated by commas" @input="editTodo('tags', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-tags" /></View>
+          </View>
+          <Text :if="dHint()" class="pl-[19px] text-[11.5px]" style="color: secondaryLabel" :text="dHint()" testID="detail-hint" />
+          <View class="flex-row gap-[2px] items-center pl-[13px] pt-[8px]">
+            <Pressable class="flex-row gap-[6px] items-center px-[6px] h-[26px] rounded-[6px]" testID="detail-when" @click="whenMenu(current())">
+              <Icon :symbol="chip()?.symbol || 'calendar'" class="h-[14px] w-[14px]" :style="{color: chip()?.color || '#8e8e93'}" />
+              <Text class="text-[14px]" :style="{color: chip()?.label === 'When' ? 'secondaryLabel' : 'label'}" :text="chip()?.label || 'When'" />
+            </Pressable>
+            <Pressable :if="current()?.repeat && current()?.repeat !== 'none'" class="flex-row gap-[4px] items-center px-[6px] h-[26px]" testID="detail-repeat" @click="repeatMenu(current())">
+              <Icon symbol="repeat" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
+              <Text class="text-[13px]" style="color: secondaryLabel" :text="REPEATS.find(r => r.value === current()?.repeat)?.label || ''" />
+            </Pressable>
+            <View class="flex-1" />
+            <ToolbarButton label="Tags" style="color: #a1a1a6" symbol="tag" testID="detail-tags-button" @click="showTags.set(!showTags())" />
+            <ToolbarButton label="Checklist" style="color: #a1a1a6" symbol="checklist" testID="detail-checklist-button" @click="openChecklist()" />
+            <ToolbarButton label="Deadline" style="color: #a1a1a6" symbol="flag" testID="detail-deadline-button" @click="showDeadline.set(!showDeadline())" />
+          </View>
+        </View>
+        <View :for="b in afterBlocks()" :key="b.key" class="flex-col" :testID="'block-' + b.key">
+          <View class="flex-row gap-[8px] items-end pl-[12px] pr-[2px]" :style="{display: b.header.show ? 'flex' : 'none', paddingTop: b.header.number ? 22 : b.header.size >= 20 ? 24 : 20, paddingBottom: b.header.ruleBelow ? 6 : 4, marginBottom: b.header.ruleBelow ? 4 : 0 + b.header.gap, borderBottomWidth: b.header.ruleBelow ? 1 : 0, borderColor: colors().hairline}">
+            <Icon :symbol="b.header.symbol || 'circle'" class="mb-[2px] h-[17px] w-[17px]" :style="{display: b.header.symbol ? 'flex' : 'none', color: b.header.symbolColor}" />
+            <Text class="font-bold text-[24px]" :style="{display: b.header.number ? 'flex' : 'none'}" :text="b.header.number" />
+            <View class="flex-1 flex-col gap-[3px]">
+              <View class="h-[1px]" :style="{display: b.header.ruleAbove ? 'flex' : 'none', backgroundColor: colors().hairline}" />
+              <Text class="font-bold" :numberOfLines="1" :style="{fontSize: b.header.size, color: b.header.muted ? 'secondaryLabel' : 'label', paddingBottom: b.header.number ? 2 : 0}" :text="b.header.label" />
+            </View>
+          </View>
+          <View :for="r in b.rows" :key="r.todo.id" class="flex-row gap-[9px] items-center px-[12px] h-[28px] rounded-[6px]" :style="{backgroundColor: 'transparent'}" :testID="'row-' + r.todo.id">
+            <Pressable class="items-center justify-center shrink-0 h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: !!(r.todo.completed_at || r.todo.canceled_at) ? colors().accent : colors().checkbox, backgroundColor: !!(r.todo.completed_at || r.todo.canceled_at) ? colors().accent : 'transparent'}" :accessibilityLabel="!!(r.todo.completed_at || r.todo.canceled_at) ? 'Mark as not done' : 'Complete'" :testID="'check-' + r.todo.id" @click="toggleTodo(r.todo)">
+              <Icon symbol="checkmark" class="h-[9px] w-[9px]" :style="{display: (!!(r.todo.completed_at || r.todo.canceled_at) ? 'flex' : 'none'), color: '#ffffff'}" />
+            </Pressable>
+            <Pressable class="flex-1 flex-row gap-[6px] items-center h-[28px] min-w-0" :testID="'todo-' + r.todo.id" @click="openTodo(r.todo)" @contextmenu="todoMenu(r.todo)">
+              <Icon symbol="star.fill" class="shrink-0 h-[12px] w-[12px]" :style="{display: (r.marks.star ? 'flex' : 'none'), color: '#f7c600'}" />
+              <Icon symbol="moon.fill" class="shrink-0 h-[11px] w-[11px]" :style="{display: (r.marks.evening ? 'flex' : 'none'), color: '#4f6bd8'}" />
+              <Text class="shrink min-w-[60px] text-[15px]" :numberOfLines="1" :style="{color: !!(r.todo.completed_at || r.todo.canceled_at) ? 'secondaryLabel' : 'label', textDecorationLine: !!(r.todo.completed_at || r.todo.canceled_at) ? 'line-through' : 'none'}" :text="r.todo.title || 'New To-Do'" />
+              <Icon symbol="doc" class="shrink-0 h-[11px] w-[10px]" :style="{display: (r.marks.notes ? 'flex' : 'none'), color: 'secondaryLabel'}" />
+              <Icon symbol="repeat" class="shrink-0 h-[10px] w-[10px]" :style="{display: (r.marks.repeat ? 'flex' : 'none'), color: 'secondaryLabel'}" />
+              <Text class="shrink-0 text-[12px]" :numberOfLines="1" :style="{display: (r.marks.project ? 'flex' : 'none'), color: 'secondaryLabel'}" :text="r.marks.project || ''" />
+              <View class="flex-1" />
+              <Text class="shrink-0 text-[12px]" :style="{display: (r.marks.checklist ? 'flex' : 'none'), color: 'secondaryLabel'}" :text="r.marks.checklist || ''" />
+              <Text class="shrink-0 px-[6px] h-[17px] text-[11px] rounded-[8px]" :numberOfLines="1" :style="{display: (r.marks.tags?.length ? 'flex' : 'none'), color: 'secondaryLabel', backgroundColor: colors().hover}" :text="(r.marks.tags || []).join('  ')" />
+              <Text class="shrink-0 text-[12px]" :style="{display: (r.marks.date ? 'flex' : 'none'), color: 'secondaryLabel'}" :text="r.marks.date || ''" />
+              <Icon symbol="flag.fill" class="h-[10px] w-[10px]" :style="{display: (r.marks.deadline ? 'flex' : 'none'), color: r.marks.overdue ? '#e5484d' : '#8e8e93'}" />
+              <Text class="text-[12px]" :style="{display: (r.marks.deadline ? 'flex' : 'none'), color: r.marks.overdue ? '#e5484d' : 'secondaryLabel'}" :text="r.marks.deadline || ''" />
+            </Pressable>
           </View>
         </View>
 
@@ -1145,7 +1182,17 @@ onMount(async () => {
       <View class="flex-col pb-[12px] px-[8px]">
         <View :for="group in noteGroups()" :key="group.key" class="flex-col">
           <Text class="pb-[4px] pt-[12px] px-[14px] font-bold text-[13px]" :text="group.label" />
-          <KeptMacListRow :for="note in group.notes" :key="note.id" :rowId="'note-' + note.id" :title="note.title" :subtitle="noteSnippet(note)" :meta="inTrash() ? daysLeft(note.deleted_at, trashDays()) + ' days' : noteStamp(note.updated_at)" :folder="nav().folder === 'all' && note.note_folder_id ? folderName(note.note_folder_id) : ''" :symbol="note.pinned && group.key !== 'pinned' ? 'pin.fill' : ''" :selected="note.id === noteId()" :fill="colors().noteSelection" @choose="selectNote(note)" @menu="noteMenu(note)" />
+          <Pressable :for="note in group.notes" :key="note.id" class="flex-col gap-[1px] px-[14px] py-[8px] rounded-[7px]" :style="{backgroundColor: note.id === noteId() ? colors().noteSelection : 'transparent'}" :testID="'note-' + note.id" @click="selectNote(note)" @contextmenu="noteMenu(note)">
+            <View class="flex-row gap-[5px] items-center">
+              <Icon symbol="pin.fill" class="shrink-0 h-[10px] w-[10px]" :style="{display: note.pinned && group.key !== 'pinned' ? 'flex' : 'none', color: '#e8a10c'}" />
+              <Text class="flex-1 font-bold text-[13px]" :numberOfLines="1" :text="note.title || 'New Note'" />
+            </View>
+            <View class="flex-row gap-[7px]">
+              <Text class="shrink-0 text-[12px]" :numberOfLines="1" :text="inTrash() ? daysLeft(note.deleted_at, trashDays()) + ' days' : noteStamp(note.updated_at)" />
+              <Text class="flex-1 text-[12px]" style="color: secondaryLabel" :numberOfLines="1" :text="noteSnippet(note)" />
+            </View>
+            <Text class="text-[11.5px]" style="color: secondaryLabel" :numberOfLines="1" :style="{display: nav().folder === 'all' && note.note_folder_id ? 'flex' : 'none'}" :text="folderName(note.note_folder_id)" />
+          </Pressable>
         </View>
         <Text :if="!noteCount()" class="p-[16px] text-[12.5px]" style="color: secondaryLabel" :text="search() ? 'No notes match.' : inTrash() ? 'Nothing was deleted recently.' : 'No notes. Press Command N to start one.'" testID="notes-empty" />
       </View>

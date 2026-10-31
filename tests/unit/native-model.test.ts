@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test'
-import { acceptCompletion, appendCheckLine, cacheKey, capForCache, checkLines, cleanCompletion, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, noteTagList, notesIn, parseDayField, parseNav, progressSymbol, projectProgress, promptVariables, quickEntry, resolveDay, rowMarks, shareLink, sidebarSections, todoBlocks, toggleChecklist, unfilled, whenChip } from '../../resources/functions/kept/native-model'
+import { acceptCompletion, appendCheckLine, cacheKey, capForCache, checkLines, cleanCompletion, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, noteTagList, notesIn, parseDayField, parseNav, progressSymbol, projectProgress, splitBlocks, blockHeader, promptVariables, quickEntry, resolveDay, rowMarks, shareLink, sidebarSections, todoBlocks, toggleChecklist, unfilled, whenChip } from '../../resources/functions/kept/native-model'
 import type { LibraryList, Note, SidebarData, Todo } from '../../resources/functions/kept/types'
 
 const today = '2026-10-30'
@@ -137,6 +137,25 @@ describe('native to-do list', () => {
     expect(rowMarks(todo({ when: 'anytime', start_date: '2026-11-04' }), { kind: 'list', name: 'anytime' }, today).date).toBe('Nov 4')
     expect(rowMarks(todo({ when: 'anytime', start_date: '2026-11-04' }), { kind: 'list', name: 'upcoming' }, today).date).toBe('')
     expect(rowMarks(todo({ deadline: '2026-11-20' }), { kind: 'list', name: 'inbox' }, today).overdue).toBe(false)
+  })
+
+  it('cuts the list at the open to-do so the editor is drawn once', () => {
+    const open = [todo({ when: 'today', title: 'a' }), todo({ when: 'today', title: 'b' }), todo({ when: 'today', title: 'c' }), todo({ when: 'evening', title: 'd' })]
+    const blocks = todoBlocks({ kind: 'list', name: 'today' }, open, [], today)
+    const cut = splitBlocks(blocks, open[1]!.id)
+    expect(cut.open?.title).toBe('b')
+    expect(cut.before.map(b => b.items.map(t => t.title))).toEqual([['a']])
+    expect(cut.after.map(b => [b.kind, b.items.map(t => t.title)])).toEqual([['rest', ['c']], ['evening', ['d']]])
+    expect(blockHeader(cut.after[0]!).show).toBe(false)
+    expect(splitBlocks(blocks, 0)).toEqual({ before: blocks, open: null, after: [] })
+    expect(splitBlocks(blocks, 999).open).toBeNull()
+  })
+
+  it('gives every block kind one heading shape', () => {
+    expect(blockHeader({ key: 'd', kind: 'day', label: 'Tomorrow', number: '31', symbol: '', projectId: null, items: [] })).toMatchObject({ show: true, number: '31', muted: true, ruleAbove: true, gap: 26 })
+    expect(blockHeader({ key: 'p', kind: 'project', label: 'Garden', number: '', symbol: 'circle', projectId: 7, items: [] })).toMatchObject({ symbol: 'circle', ruleBelow: true })
+    expect(blockHeader({ key: 'e', kind: 'evening', label: 'This Evening', number: '', symbol: '', projectId: null, items: [] }).symbol).toBe('moon.fill')
+    expect(blockHeader({ key: 'x', kind: 'plain', label: '', number: '', symbol: '', projectId: null, items: [] }).show).toBe(false)
   })
 
   it('labels the When chip', () => {

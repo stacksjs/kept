@@ -187,7 +187,7 @@ export function quickEntry(view: View, title: string, today: string): Partial<To
   return { ...base, title: name.slice(0, 255) }
 }
 
-export type BlockKind = 'plain' | 'evening' | 'day' | 'month' | 'project' | 'logday'
+export type BlockKind = 'plain' | 'evening' | 'day' | 'month' | 'project' | 'logday' | 'rest'
 export interface TodoBlock { key: string, kind: BlockKind, label: string, number: string, symbol: string, projectId: number | null, items: Todo[] }
 
 const block = (key: string, kind: BlockKind, items: Todo[], extra: Partial<TodoBlock> = {}): TodoBlock =>
@@ -232,6 +232,51 @@ export function todoBlocks(view: View, open: Todo[], logbook: Todo[], today: str
     blocks.push(block(`project-${id}`, 'project', items.filter(todo => todo.project_id === id).sort(byOrder), { label: title, projectId: id, symbol: progressSymbol(progress?.get(id) ?? 0) }))
   }
   return blocks
+}
+
+/**
+ * The list cut at the open to-do, so the editor card is drawn once between two
+ * loops instead of being a hidden branch inside every row (the native runtime
+ * builds a false branch that holds components or loops). The cut block goes on
+ * after the card without repeating its heading.
+ */
+export function splitBlocks(blocks: TodoBlock[], openId: number): { before: TodoBlock[], open: Todo | null, after: TodoBlock[] } {
+  if (!openId) return { before: blocks, open: null, after: [] }
+  const at = blocks.findIndex(b => b.items.some(todo => todo.id === openId))
+  if (at < 0) return { before: blocks, open: null, after: [] }
+  const cut = blocks[at]!
+  const index = cut.items.findIndex(todo => todo.id === openId)
+  const head = { ...cut, items: cut.items.slice(0, index) }
+  const rest = { ...cut, key: `${cut.key}-rest`, kind: 'rest' as const, items: cut.items.slice(index + 1) }
+  return { before: [...blocks.slice(0, at), head], open: cut.items[index]!, after: [rest, ...blocks.slice(at + 1)] }
+}
+
+export interface BlockHeader {
+  show: boolean
+  symbol: string
+  symbolColor: string
+  number: string
+  label: string
+  size: number
+  muted: boolean
+  /** A hairline over the label (Upcoming days) or under the whole heading (projects, This Evening, months). */
+  ruleAbove: boolean
+  ruleBelow: boolean
+  /** Room kept under an empty Upcoming day, as Things leaves it. */
+  gap: number
+}
+
+/** One heading shape for every block kind, so a list has one template per block rather than a branch per kind. */
+export function blockHeader(block: TodoBlock): BlockHeader {
+  const base: BlockHeader = { show: true, symbol: '', symbolColor: '#2f6fe4', number: '', label: block.label, size: 16, muted: false, ruleAbove: false, ruleBelow: false, gap: 0 }
+  switch (block.kind) {
+    case 'project': return { ...base, symbol: block.symbol, ruleBelow: true }
+    case 'evening': return { ...base, symbol: 'moon.fill', symbolColor: '#4f6bd8', ruleBelow: true }
+    case 'day': return { ...base, number: block.number, size: 15, muted: true, ruleAbove: true, gap: block.items.length ? 0 : 26 }
+    case 'month': return { ...base, size: 20, ruleBelow: true }
+    case 'logday': return { ...base, size: 13, muted: true }
+    default: return { ...base, show: false }
+  }
 }
 
 export interface RowMarks {
