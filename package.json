@@ -59,12 +59,12 @@
   "dependencies": {
     "@iconify-json/f7": "1.2.2",
     "@iconify-json/hugeicons": "1.2.35",
-    "@stacksjs/actions": "^0.75.387",
-    "@stacksjs/env": "^0.75.387",
-    "@stacksjs/path": "^0.75.387",
+    "@stacksjs/actions": "^0.75.397",
+    "@stacksjs/env": "^0.75.397",
+    "@stacksjs/path": "^0.75.397",
     "@stacksjs/stx": "0.2.769",
     "bun-query-builder": "^0.3.32",
-    "stacks": "^0.75.387"
+    "stacks": "^0.75.397"
   },
   "workspaces": [
     "storage/framework",

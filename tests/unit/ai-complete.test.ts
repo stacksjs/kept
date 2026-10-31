@@ -11,8 +11,9 @@ describe('inline completions', () => {
     expect(routes).toContain('route.post(\'/complete\', \'Actions/AI/CompleteAction\').middleware(\'auth\')')
   })
 
-  it('is on, and names no model or driver the app does not have', () => {
+  it('is on, and runs on a Bedrock model the app requests access to', () => {
     expect(config.completion?.enabled).toBe(true)
-    expect(config.completion).not.toHaveProperty('model')
+    expect(config.completion?.driver).toBe('bedrock')
+    expect(config.models).toContain(config.completion?.model)
   })
 })

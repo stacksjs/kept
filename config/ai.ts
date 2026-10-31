@@ -23,11 +23,9 @@ export default {
   ],
 
   // Inline ghost-text completions in the note, prompt and to-do editors
-  // (POST /api/complete). They run on the default driver above with its fast
-  // model class, and quietly answer nothing while no driver is configured.
-  // To use Bedrock Nova instead of the default driver:
-  //   completion: { driver: 'bedrock', model: 'amazon.nova-lite-v1:0' }
-  completion: { enabled: true },
+  // (POST /api/complete). Amazon Nova Lite answers them on demand through
+  // Bedrock; they quietly answer nothing while AWS credentials are missing.
+  completion: { enabled: true, driver: 'bedrock', model: 'amazon.nova-lite-v1:0' },
 
   deploy: true, // deploys AI endpoints
 } satisfies AiConfig

@@ -33,6 +33,17 @@ declare module '@stacksjs/database' {
       currency: string
       properties: string
     }
+    areas: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      title: string
+      icon: string
+      sort_order: number
+      user_id: number
+    }
     auction_items: {
       // columns
       id: number
@@ -372,6 +383,18 @@ declare module '@stacksjs/database' {
       is_active: number
       categorizable_id: number
       categorizable_type: string
+    }
+    checklist_items: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      title: string
+      done: number
+      sort_order: number
+      user_id: number
+      todo_id: number
     }
     ci_run_states: {
       // columns
@@ -798,6 +821,18 @@ declare module '@stacksjs/database' {
       template_id: string
       customer_id: number
     }
+    headings: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      title: string
+      sort_order: number
+      archived_at: string
+      user_id: number
+      project_id: number
+    }
     job_batches: {
       // columns
       id: string
@@ -985,6 +1020,30 @@ declare module '@stacksjs/database' {
       handle: string
       name: string
       site_id: number
+    }
+    note_folders: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      title: string
+      sort_order: number
+      user_id: number
+    }
+    notes: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      deleted_at: string | null
+      title: string
+      snippet: string
+      body: string
+      pinned: number
+      user_id: number
+      note_folder_id: number
     }
     notification_deliveries: {
       // columns
@@ -1291,6 +1350,68 @@ declare module '@stacksjs/database' {
       category_id: number
       manufacturer_id: number
     }
+    projects: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      title: string
+      notes: string
+      when: "anytime" | "someday"
+      start_date: string
+      deadline: string
+      tags: string
+      sort_order: number
+      completed_at: string
+      canceled_at: string
+      user_id: number
+      area_id: number
+    }
+    prompt_libraries: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      title: string
+      description: string
+      icon: string
+      color: string
+      share_token: string
+      sort_order: number
+      user_id: number
+    }
+    prompt_versions: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      version: number
+      title: string
+      body: string
+      user_id: number
+      prompt_id: number
+    }
+    prompts: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      deleted_at: string | null
+      title: string
+      description: string
+      body: string
+      model: string
+      tags: string
+      favorite: number
+      uses: number
+      version: number
+      user_id: number
+      prompt_library_id: number
+    }
     query_logs: {
       // columns
       id: number
@@ -1450,6 +1571,20 @@ declare module '@stacksjs/database' {
       verified_at: string
       last_checked_at: string
       team_id: number
+    }
+    shares: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      resource_type: "library" | "note" | "project"
+      resource_id: number
+      shared_with_user_id: number
+      email: string
+      role: "viewer" | "editor"
+      accepted_at: string
+      user_id: number
     }
     shipping_methods: {
       // columns
@@ -1705,6 +1840,28 @@ declare module '@stacksjs/database' {
       description: string
       member_count: number
       status: string
+    }
+    todos: {
+      // columns
+      id: number
+      uuid: string
+      created_at: string
+      updated_at: string | null
+      deleted_at: string | null
+      title: string
+      notes: string
+      when: "inbox" | "today" | "evening" | "anytime" | "someday"
+      start_date: string
+      deadline: string
+      tags: string
+      repeat: "none" | "daily" | "weekly" | "monthly" | "yearly"
+      sort_order: number
+      completed_at: string
+      canceled_at: string
+      user_id: number
+      area_id: number
+      project_id: number
+      heading_id: number
     }
     transactions: {
       // columns
