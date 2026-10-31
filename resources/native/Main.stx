@@ -1016,7 +1016,7 @@ onMount(async () => {
 
   <View :if="signedIn() && nav().section === 'todos'" class="flex-1 flex-col min-w-0" :style="{backgroundColor: editing() ? colors().dimmed : colors().list}" testID="todos-pane">
     <ScrollView class="flex-1" testID="todo-list">
-      <View class="flex-col pb-[24px] pl-[48px] pr-[40px] pt-[30px]">
+      <View class="flex-col pb-[24px] pl-[48px] pr-[40px] pt-[40px]">
         <View class="flex-row gap-[10px] items-center pl-[12px] h-[36px]">
           <Icon :symbol="headerSymbol()" class="h-[24px] w-[24px]" :style="{color: headerColor()}" />
           <Text :if="view()?.kind === 'list'" class="flex-1 font-bold text-[24px]" :numberOfLines="1" :text="title()" testID="list-title" />
@@ -1027,7 +1027,7 @@ onMount(async () => {
           <Icon symbol="wifi.slash" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
           <Text class="text-[12px]" style="color: secondaryLabel" :text="'Offline, showing saved items'" />
         </View>
-        <View class="h-[16px]" />
+        <View class="h-[24px]" />
 
         <View :if="drafting()" class="flex-col gap-[6px] mb-[10px] px-[12px] py-[12px] border rounded-[12px]" :style="{backgroundColor: colors().card, borderColor: colors().hairline}" testID="draft-card">
           <View class="flex-row gap-[9px] items-center">
@@ -1037,7 +1037,7 @@ onMount(async () => {
         </View>
 
         <View :for="b in beforeBlocks()" :key="b.key" class="flex-col" :testID="'block-' + b.key">
-          <View class="flex-row gap-[8px] items-end pl-[12px] pr-[2px]" :style="{display: b.header.show ? 'flex' : 'none', paddingTop: b.header.number ? 22 : b.header.size >= 20 ? 24 : 20, paddingBottom: b.header.ruleBelow ? 6 : 4, marginBottom: b.header.ruleBelow ? 4 : 0 + b.header.gap, borderBottomWidth: b.header.ruleBelow ? 1 : 0, borderColor: colors().hairline}">
+          <View class="flex-row gap-[8px] items-end pl-[12px] pr-[2px]" :style="{display: b.header.show ? 'flex' : 'none', paddingTop: b.header.top, paddingBottom: b.header.ruleBelow ? 6 : 4, marginBottom: b.header.ruleBelow ? 4 : 0 + b.header.gap, borderBottomWidth: b.header.ruleBelow ? 1 : 0, borderColor: colors().hairline}">
             <Icon :symbol="b.header.symbol || 'circle'" class="mb-[2px] h-[17px] w-[17px]" :style="{display: b.header.symbol ? 'flex' : 'none', color: b.header.symbolColor}" />
             <Text class="font-bold text-[24px]" :style="{display: b.header.number ? 'flex' : 'none'}" :text="b.header.number" />
             <View class="flex-1 flex-col gap-[3px]">
@@ -1118,7 +1118,7 @@ onMount(async () => {
           </View>
         </View>
         <View :for="b in afterBlocks()" :key="b.key" class="flex-col" :testID="'block-' + b.key">
-          <View class="flex-row gap-[8px] items-end pl-[12px] pr-[2px]" :style="{display: b.header.show ? 'flex' : 'none', paddingTop: b.header.number ? 22 : b.header.size >= 20 ? 24 : 20, paddingBottom: b.header.ruleBelow ? 6 : 4, marginBottom: b.header.ruleBelow ? 4 : 0 + b.header.gap, borderBottomWidth: b.header.ruleBelow ? 1 : 0, borderColor: colors().hairline}">
+          <View class="flex-row gap-[8px] items-end pl-[12px] pr-[2px]" :style="{display: b.header.show ? 'flex' : 'none', paddingTop: b.header.top, paddingBottom: b.header.ruleBelow ? 6 : 4, marginBottom: b.header.ruleBelow ? 4 : 0 + b.header.gap, borderBottomWidth: b.header.ruleBelow ? 1 : 0, borderColor: colors().hairline}">
             <Icon :symbol="b.header.symbol || 'circle'" class="mb-[2px] h-[17px] w-[17px]" :style="{display: b.header.symbol ? 'flex' : 'none', color: b.header.symbolColor}" />
             <Text class="font-bold text-[24px]" :style="{display: b.header.number ? 'flex' : 'none'}" :text="b.header.number" />
             <View class="flex-1 flex-col gap-[3px]">

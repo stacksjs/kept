@@ -264,17 +264,19 @@ export interface BlockHeader {
   ruleBelow: boolean
   /** Room kept under an empty Upcoming day, as Things leaves it. */
   gap: number
+  /** Space above the heading, read off the Things captures. */
+  top: number
 }
 
 /** One heading shape for every block kind, so a list has one template per block rather than a branch per kind. */
 export function blockHeader(block: TodoBlock): BlockHeader {
-  const base: BlockHeader = { show: true, symbol: '', symbolColor: '#2f6fe4', number: '', label: block.label, size: 16, muted: false, ruleAbove: false, ruleBelow: false, gap: 0 }
+  const base: BlockHeader = { show: true, symbol: '', symbolColor: '#2f6fe4', number: '', label: block.label, size: 16, muted: false, ruleAbove: false, ruleBelow: false, gap: 0, top: 30 }
   switch (block.kind) {
     case 'project': return { ...base, symbol: block.symbol, ruleBelow: true }
     case 'evening': return { ...base, symbol: 'moon.fill', symbolColor: '#4f6bd8', ruleBelow: true }
-    case 'day': return { ...base, number: block.number, size: 15, muted: true, ruleAbove: true, gap: block.items.length ? 0 : 26 }
-    case 'month': return { ...base, size: 20, ruleBelow: true }
-    case 'logday': return { ...base, size: 13, muted: true }
+    case 'day': return { ...base, number: block.number, size: 15, muted: true, ruleAbove: true, gap: block.items.length ? 0 : 26, top: 24 }
+    case 'month': return { ...base, size: 20, ruleBelow: true, top: 30 }
+    case 'logday': return { ...base, size: 13, muted: true, top: 16 }
     default: return { ...base, show: false }
   }
 }
