@@ -6,7 +6,7 @@
  */
 import type { NativeCraft, NativeDesktop } from '@stacksjs/stx/native'
 import { createApi, type KeptApi, type Session } from './api'
-import { capForCache, cacheKey, type CacheName } from './native-model'
+import { capForCache, cacheKey, cleanCompletion, type CacheName, type CompletionKind } from './native-model'
 
 export function nativeCraft(): NativeCraft {
   return (globalThis as unknown as { craft: NativeCraft }).craft
@@ -14,7 +14,7 @@ export function nativeCraft(): NativeCraft {
 
 export function desktop(): NativeDesktop {
   const value = nativeCraft().desktop
-  if (!value) throw new Error('Kept for Mac needs the Craft AppKit host.')
+  if (!value) throw new Error('Library for Mac needs the Craft AppKit host.')
   return value
 }
 
@@ -67,6 +67,27 @@ export function nativeApi(session: Session, onSignedOut?: () => void): KeptApi {
   })
 }
 
+/** Not asking again for a while after the server said it has no completions (404 or 501) or failed. */
+let completionsPausedUntil = 0
+
+/**
+ * An inline completion from `POST /api/complete`. Every failure (offline, no
+ * route yet, a slow model) is silent and gives '', because ghost text is a
+ * nicety; a missing route pauses asking for five minutes.
+ */
+export async function requestCompletion(session: Session, payload: { kind: CompletionKind, context: string, before: string, after: string }): Promise<string> {
+  if (Date.now() < completionsPausedUntil) return ''
+  const token = session.token()
+  if (!token) return ''
+  try {
+    const response = await fetch(`${apiOrigin()}/api/complete`, { method: 'POST', headers: { 'accept': 'application/json', 'content-type': 'application/json', 'authorization': `Bearer ${token}` }, body: JSON.stringify(payload) })
+    if (response.status === 404 || response.status === 501 || response.status >= 500) { completionsPausedUntil = Date.now() + 5 * 60 * 1000; return '' }
+    if (!response.ok) return ''
+    return cleanCompletion((await response.json() as { completion?: unknown })?.completion)
+  }
+  catch { return '' }
+}
+
 export function apiOrigin(): string {
   return (nativeCraft().app.url || '').replace(/\/+$/, '')
 }
@@ -76,7 +97,7 @@ export function apiOrigin(): string {
 
 export interface Account { id: number, email: string, name: string }
 
-const ACCOUNT_KEY = 'kept.account'
+const ACCOUNT_KEY = 'library.account'
 
 export function savedAccount(): Account | null {
   try {
@@ -112,7 +133,12 @@ export function palette(scheme: 'light' | 'dark') {
     dark,
     list: dark ? '#1e1e20' : '#ffffff',
     detail: dark ? '#262628' : '#f6f6f7',
-    selection: dark ? '#2c3e5c' : '#dce8fd',
+    dimmed: dark ? '#18181a' : '#f8f9fb',
+    card: dark ? '#2c2c2e' : '#ffffff',
+    hairline: dark ? '#38383a' : '#e5e5ea',
+    checkbox: dark ? '#636366' : '#c7c7cc',
+    selection: dark ? '#2f3b4d' : '#e3ebf9',
+    noteSelection: dark ? '#5a4a1c' : '#fbe6a2',
     hover: dark ? '#2a2a2c' : '#f2f2f4',
     field: dark ? '#2c2c2e' : '#ffffff',
     muted: dark ? '#98989d' : '#6e6e73',

@@ -20,7 +20,7 @@ function send() {
   <View class="gap-3 items-stretch w-[340px]">
     <View class="gap-2 items-stretch pb-2">
       <Icon symbol="checkmark.circle.fill" class="self-center h-[44px] w-[44px]" style="color: accent" />
-      <Text class="font-semibold text-[22px] text-center" :text="creating() ? 'Create your Kept account' : 'Sign in to Kept'" testID="sign-in-title" />
+      <Text class="font-semibold text-[22px] text-center" :text="creating() ? 'Create your Library account' : 'Sign in to Library'" testID="sign-in-title" />
       <Text class="text-[12px] text-center" style="color: secondaryLabel" :text="'To-dos, notes and prompts on every device.'" />
     </View>
     <TextInput :if="creating()" x-model="name" placeholder="Name" class="h-[28px]" testID="sign-in-name" />

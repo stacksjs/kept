@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
-import { appendCheckLine, cacheKey, capForCache, checkLines, chipColors, eventText, eventValue, fillPrompt, findLibrary, isOfflineError, navId, navTitle, noteStamp, parseDayField, parseNav, promptVariables, quickEntry, resolveDay, shareLink, sidebarSections, todoChips, todoGroups, toggleChecklist, unfilled } from '../../resources/functions/kept/native-model'
-import type { LibraryList, SidebarData, Todo } from '../../resources/functions/kept/types'
+import { acceptCompletion, appendCheckLine, cacheKey, capForCache, checkLines, cleanCompletion, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, noteTagList, notesIn, parseDayField, parseNav, progressSymbol, projectProgress, promptVariables, quickEntry, resolveDay, rowMarks, shareLink, sidebarSections, todoBlocks, toggleChecklist, unfilled, whenChip } from '../../resources/functions/kept/native-model'
+import type { LibraryList, Note, SidebarData, Todo } from '../../resources/functions/kept/types'
 
 const today = '2026-10-30'
 let next = 1
@@ -25,31 +25,35 @@ const libraries: LibraryList = {
 }
 
 describe('native sidebar', () => {
-  it('lists the smart lists, areas with their projects, notes and libraries', () => {
-    const sections = sidebarSections(sidebar, libraries)
-    expect(sections.map(s => s.header ?? '')).toEqual(['', 'Areas', 'Notes', 'Prompt Libraries', 'Shared with me'])
-    expect(sections[0]!.items.map(i => i.id)).toEqual(['list:inbox', 'list:today', 'list:upcoming', 'list:anytime', 'list:someday', 'list:logbook'])
-    expect(sections[0]!.items.map(i => i.badge)).toEqual(['2', '4', '', '', '', ''])
-    // A project with no area comes first, then each area followed by its projects.
-    expect(sections[1]!.items.map(i => i.id)).toEqual(['project:8', 'area:1', 'project:7'])
-    expect(sections[2]!.items.map(i => [i.id, i.badge])).toEqual([['notes:all', '5'], ['folder:3', '2']])
-    expect(sections[3]!.items[0]).toMatchObject({ id: 'library:4', color: '#0f8a5f', badge: '2' })
-    expect(sections[4]!.items[0]).toMatchObject({ id: 'library:9', color: '#1a7cf5', badge: 'Viewer' })
+  it('groups the lists the way Things does, then notes, tags and libraries', () => {
+    const sections = sidebarSections(sidebar, libraries, { tags: [{ name: 'trip', count: 2 }], trash: 1, progress: new Map([[7, 0.5]]) })
+    expect(sections.map(s => s.id)).toEqual(['inbox', 'lists', 'logbook', 'areas', 'notes', 'tags', 'libraries', 'shared'])
+    expect(sections.slice(0, 4).every(s => !s.header)).toBe(true)
+    expect(sections[1]!.items.map(i => [i.id, i.badge])).toEqual([['list:today', '4'], ['list:upcoming', ''], ['list:anytime', ''], ['list:someday', '']])
+    expect(sections[0]!.items[0]!.badge).toBe('2')
+    // A project with no area comes first, then each area followed by its projects; rings show progress.
+    expect(sections[3]!.items.map(i => i.id)).toEqual(['project:8', 'area:1', 'project:7'])
+    expect(sections[3]!.items[2]!.icon).toBe('circle.righthalf.filled')
+    expect(sections[4]!.items.map(i => [i.id, i.badge])).toEqual([['notes:all', '5'], ['folder:3', '2'], ['notes:trash', '1']])
+    expect(sections[5]!.items[0]).toMatchObject({ id: 'tag:trip', label: '#trip', badge: '2' })
+    expect(sections[6]!.items[0]).toMatchObject({ id: 'library:4', color: '#0f8a5f', badge: '2' })
+    expect(sections[7]!.items[0]).toMatchObject({ id: 'library:9', color: '#1a8cff', badge: 'Viewer' })
   })
 
   it('prefers counts computed on the device and drops empty groups', () => {
-    const sections = sidebarSections({ ...sidebar, areas: [], projects: [] }, { owned: [], shared: [] }, { inbox: 0, today: 9 })
-    expect(sections.map(s => s.id)).toEqual(['lists', 'notes'])
+    const sections = sidebarSections({ ...sidebar, areas: [], projects: [] }, { owned: [], shared: [] }, { counts: { inbox: 0, today: 9 } })
+    expect(sections.map(s => s.id)).toEqual(['inbox', 'lists', 'logbook', 'notes'])
     expect(sections[0]!.items[0]!.badge).toBe('')
-    expect(sections[0]!.items[1]!.badge).toBe('9')
-    expect(sidebarSections(null, null).map(s => s.id)).toEqual(['lists', 'notes'])
+    expect(sections[1]!.items[0]!.badge).toBe('9')
+    expect(sidebarSections(null, null).map(s => s.id)).toEqual(['inbox', 'lists', 'logbook', 'notes'])
   })
 
   it('round-trips sidebar ids and rejects junk', () => {
-    for (const id of ['list:today', 'project:7', 'area:1', 'notes:all', 'folder:3', 'library:4']) expect(navId(parseNav(id)!)).toBe(id)
+    for (const id of ['list:today', 'project:7', 'area:1', 'notes:all', 'notes:trash', 'folder:3', 'tag:trip', 'library:4']) expect(navId(parseNav(id)!)).toBe(id)
     expect(parseNav('list:nope')).toBeNull()
     expect(parseNav('project:abc')).toBeNull()
     expect(parseNav('library:-1')).toBeNull()
+    expect(parseNav('tag:has space')).toBeNull()
     expect(parseNav('')).toBeNull()
   })
 
@@ -57,6 +61,8 @@ describe('native sidebar', () => {
     expect(navTitle(parseNav('list:upcoming')!, sidebar, libraries)).toBe('Upcoming')
     expect(navTitle(parseNav('project:7')!, sidebar, libraries)).toBe('Garden')
     expect(navTitle(parseNav('folder:3')!, sidebar, libraries)).toBe('Recipes')
+    expect(navTitle(parseNav('notes:trash')!, sidebar, libraries)).toBe('Recently Deleted')
+    expect(navTitle(parseNav('tag:trip')!, sidebar, libraries)).toBe('#trip')
     expect(navTitle(parseNav('library:9')!, sidebar, libraries)).toBe('Team')
   })
 
@@ -65,6 +71,13 @@ describe('native sidebar', () => {
     expect(findLibrary(libraries, 9)).toMatchObject({ owned: false, canEdit: false })
     expect(findLibrary({ owned: [], shared: [{ ...libraries.shared[0]!, role: 'editor' }] }, 9)?.canEdit).toBe(true)
     expect(findLibrary(libraries, 99)).toBeNull()
+  })
+
+  it('draws a project ring by progress', () => {
+    expect([0, 0.2, 0.5, 0.8, 1].map(progressSymbol)).toEqual(['circle', 'circle.bottomrighthalf.pattern.checkered', 'circle.righthalf.filled', 'circle.inset.filled', 'checkmark.circle.fill'])
+    const progress = projectProgress([todo({ project_id: 7 })], [todo({ project_id: 7, completed_at: 'x' }), todo({ project_id: 7, completed_at: 'y' }), todo({ project_id: 8, canceled_at: 'z' })])
+    expect(progress.get(7)).toBeCloseTo(2 / 3)
+    expect(progress.get(8)).toBeUndefined()
   })
 })
 
@@ -85,41 +98,52 @@ describe('native quick entry', () => {
 })
 
 describe('native to-do list', () => {
+  const projects = [{ id: 7, title: 'Garden', notes: '', area_id: null, when: 'anytime' as const, deadline: null }]
+
   it('splits Today into the day and This Evening', () => {
     const open = [todo({ when: 'today', title: 'a' }), todo({ when: 'evening', title: 'b' })]
-    const groups = todoGroups({ kind: 'list', name: 'today' }, open, [], today)
-    expect(groups.map(g => [g.label, g.items.map(t => t.title)])).toEqual([['', ['a']], ['This Evening', ['b']]])
+    const blocks = todoBlocks({ kind: 'list', name: 'today' }, open, [], today)
+    expect(blocks.map(b => [b.kind, b.label, b.items.map(t => t.title)])).toEqual([['plain', '', ['a']], ['evening', 'This Evening', ['b']]])
   })
 
-  it('groups Upcoming by day and filters by search', () => {
-    const open = [todo({ when: 'anytime', start_date: '2026-11-01', title: 'Flights' }), todo({ when: 'anytime', start_date: '2026-11-02', title: 'Hotel', tags: ['travel'] })]
-    const groups = todoGroups({ kind: 'list', name: 'upcoming' }, open, [], today)
-    expect(groups.map(g => g.label)).toEqual(['Sunday', 'Monday'])
-    const found = todoGroups({ kind: 'list', name: 'upcoming' }, open, [], today, 'travel')
-    expect(found.flatMap(g => g.items.map(t => t.title))).toEqual(['Hotel'])
+  it('gives Upcoming a block for every day of the week, then months, and filters by search', () => {
+    const open = [todo({ when: 'anytime', start_date: '2026-11-01', title: 'Flights' }), todo({ when: 'anytime', start_date: '2026-11-20', title: 'Hotel', tags: ['travel'] })]
+    const blocks = todoBlocks({ kind: 'list', name: 'upcoming' }, open, [], today)
+    expect(blocks.slice(0, 3).map(b => [b.kind, b.number, b.label])).toEqual([['day', '31', 'Tomorrow'], ['day', '1', 'Sunday'], ['day', '2', 'Monday']])
+    expect(blocks.find(b => b.number === '1')!.items.map(t => t.title)).toEqual(['Flights'])
+    expect(blocks.at(-1)).toMatchObject({ kind: 'month', label: 'November' })
+    const found = todoBlocks({ kind: 'list', name: 'upcoming' }, open, [], today, [], 'travel')
+    expect(found.flatMap(b => b.items.map(t => t.title))).toEqual(['Hotel'])
   })
 
-  it('shows finished to-dos in the Logbook', () => {
-    const done = todo({ completed_at: '2026-10-29T10:00:00Z', title: 'Done' })
-    expect(todoGroups({ kind: 'list', name: 'logbook' }, [todo()], [done], today)[0]!.items.map(t => t.title)).toEqual(['Done'])
+  it('puts loose to-dos first in Anytime, then one block per project with its ring', () => {
+    const open = [todo({ when: 'anytime', title: 'Loose' }), todo({ when: 'anytime', title: 'Beds', project_id: 7 })]
+    const blocks = todoBlocks({ kind: 'list', name: 'anytime' }, open, [], today, projects, '', new Map([[7, 0.5]]))
+    expect(blocks.map(b => [b.kind, b.label, b.items.map(t => t.title)])).toEqual([['plain', '', ['Loose']], ['project', 'Garden', ['Beds']]])
+    expect(blocks[1]!.symbol).toBe('circle.righthalf.filled')
   })
 
-  it('labels a row with its project, date, deadline, repeat, checklist and tags', () => {
-    const row = todo({ project_id: 7, when: 'today', deadline: '2026-10-29', repeat: 'weekly', tags: ['phone'], checklist: [{ id: 1, todo_id: 1, title: 'a', done: true, sort_order: 0 }, { id: 2, todo_id: 1, title: 'b', done: false, sort_order: 1 }] })
-    const chips = todoChips(row, { kind: 'list', name: 'anytime' }, today, id => (id === 7 ? 'Garden' : undefined))
-    expect(chips.map(c => [c.text, c.tone])).toEqual([['Garden', 'project'], ['Today', 'when'], ['1 day overdue', 'overdue'], ['Weekly', 'repeat'], ['1/2', 'check'], ['phone', 'tag']])
-    // Inside Today the Today chip says nothing new; a scheduled one shows its date outside Upcoming.
-    expect(todoChips(todo({ when: 'today' }), { kind: 'list', name: 'today' }, today)).toEqual([])
-    expect(todoChips(todo({ when: 'anytime', start_date: '2026-11-04' }), { kind: 'list', name: 'anytime' }, today)[0]!.text).toBe('Nov 4')
-    expect(todoChips(todo({ when: 'anytime', start_date: '2026-11-04' }), { kind: 'list', name: 'upcoming' }, today)).toEqual([])
-    expect(todoChips(todo({ deadline: '2026-11-20' }), { kind: 'list', name: 'inbox' }, today)[0]!.tone).toBe('deadline')
+  it('groups the Logbook by the day each was finished', () => {
+    const done = [todo({ completed_at: '2026-10-30T10:00:00Z', title: 'A' }), todo({ completed_at: '2026-10-29T10:00:00Z', title: 'B' })]
+    expect(todoBlocks({ kind: 'list', name: 'logbook' }, [todo()], done, today).map(b => [b.label, b.items.map(t => t.title)])).toEqual([['Today', ['A']], ['Yesterday', ['B']]])
   })
 
-  it('gives every chip a colour pair on both surfaces', () => {
-    for (const tone of ['when', 'overdue', 'due', 'deadline', 'tag', 'check', 'repeat', 'project'] as const) {
-      expect(chipColors(tone, false).fg).toMatch(/^#/)
-      expect(chipColors(tone, true).fg).toMatch(/^#/)
-    }
+  it('marks a row the Things way', () => {
+    const row = todo({ project_id: 7, when: 'today', notes: 'x', deadline: '2026-10-29', repeat: 'weekly', tags: ['phone'], checklist: [{ id: 1, todo_id: 1, title: 'a', done: true, sort_order: 0 }, { id: 2, todo_id: 1, title: 'b', done: false, sort_order: 1 }] })
+    const marks = rowMarks(row, { kind: 'list', name: 'anytime' }, today, id => (id === 7 ? 'Garden' : undefined))
+    expect(marks).toMatchObject({ star: true, evening: false, notes: true, project: 'Garden', date: '', deadline: '1 day overdue', overdue: true, checklist: '1/2', repeat: true, tags: ['phone'] })
+    expect(rowMarks(todo({ when: 'today' }), { kind: 'list', name: 'today' }, today).star).toBe(false)
+    expect(rowMarks(todo({ when: 'evening' }), { kind: 'list', name: 'anytime' }, today).evening).toBe(true)
+    expect(rowMarks(todo({ when: 'anytime', start_date: '2026-11-04' }), { kind: 'list', name: 'anytime' }, today).date).toBe('Nov 4')
+    expect(rowMarks(todo({ when: 'anytime', start_date: '2026-11-04' }), { kind: 'list', name: 'upcoming' }, today).date).toBe('')
+    expect(rowMarks(todo({ deadline: '2026-11-20' }), { kind: 'list', name: 'inbox' }, today).overdue).toBe(false)
+  })
+
+  it('labels the When chip', () => {
+    expect(whenChip({ when: 'today', start_date: null }, today).label).toBe('Today')
+    expect(whenChip({ when: 'evening', start_date: null }, today).symbol).toBe('moon.fill')
+    expect(whenChip({ when: 'anytime', start_date: '2026-11-04' }, today).label).toBe('Nov 4')
+    expect(whenChip({ when: 'inbox', start_date: null }, today).label).toBe('When')
   })
 
   it('reads typed dates', () => {
@@ -128,6 +152,7 @@ describe('native to-do list', () => {
     expect(parseDayField('2026-02-30')).toEqual({ ok: false })
     expect(parseDayField('2026-1')).toEqual({ ok: false })
     expect(resolveDay('tomorrow', today)).toBe('2026-10-31')
+    expect(resolveDay('today', today)).toBe(today)
     expect(resolveDay(null, today)).toBeNull()
   })
 })
@@ -166,19 +191,76 @@ describe('native notes', () => {
     expect(appendCheckLine('')).toBe('- [ ] ')
   })
 
-  it('dates a note without Intl', () => {
+  it('dates a note the way Notes does, without Intl', () => {
     const now = new Date(2026, 9, 30, 15, 0)
     expect(noteStamp(new Date(2026, 9, 30, 9, 5).toISOString(), now)).toBe('9:05 AM')
     expect(noteStamp(new Date(2026, 9, 30, 13, 40).toISOString(), now)).toBe('1:40 PM')
-    expect(noteStamp(new Date(2026, 8, 2, 13, 40).toISOString(), now)).toBe('Sep 2')
+    expect(noteStamp(new Date(2026, 9, 29, 13, 40).toISOString(), now)).toBe('Yesterday')
+    expect(noteStamp(new Date(2026, 9, 27, 13, 40).toISOString(), now)).toBe('Tuesday')
+    expect(noteStamp(new Date(2026, 8, 2, 13, 40).toISOString(), now)).toBe('9/2/26')
     expect(noteStamp('garbage', now)).toBe('')
+  })
+
+  it('groups the list by date with Pinned first', () => {
+    const now = new Date(2026, 9, 30, 15, 0)
+    const at = (d: Date): string => d.toISOString()
+    const make = (id: number, updated: string, pinned = false): Note => ({ id, title: `n${id}`, snippet: '', body: '', pinned, note_folder_id: null, updated_at: updated })
+    const groups = noteDateGroups([
+      make(1, at(new Date(2026, 9, 30, 9))),
+      make(2, at(new Date(2026, 9, 29, 9))),
+      make(3, at(new Date(2026, 9, 26, 9))),
+      make(4, at(new Date(2026, 9, 10, 9))),
+      make(5, at(new Date(2026, 6, 4, 9))),
+      make(6, at(new Date(2025, 11, 4, 9))),
+      make(7, at(new Date(2026, 6, 4, 9)), true),
+    ], now)
+    expect(groups.map(g => [g.label, g.notes.map(n => n.id)])).toEqual([['Pinned', [7]], ['Today', [1]], ['Yesterday', [2]], ['Previous 7 Days', [3]], ['Previous 30 Days', [4]], ['July', [5]], ['December 2025', [6]]])
+  })
+
+  it('reads #tags and filters by folder, tag and words', () => {
+    const notes: Note[] = [
+      { id: 1, title: 'Trip', snippet: '', body: '# Trip\nPack #travel and #Gear', pinned: false, note_folder_id: 3, updated_at: '' },
+      { id: 2, title: 'Food', snippet: '', body: 'Soup #food', pinned: false, note_folder_id: null, updated_at: '' },
+    ]
+    expect(noteTagList(notes[0]!.body)).toEqual(['travel', 'gear'])
+    expect(noteTagCounts(notes)).toEqual([{ name: 'food', count: 1 }, { name: 'gear', count: 1 }, { name: 'travel', count: 1 }])
+    expect(notesIn(notes, 3, '').map(n => n.id)).toEqual([1])
+    expect(notesIn(notes, 'tag:food', '').map(n => n.id)).toEqual([2])
+    expect(notesIn(notes, 'all', 'soup').map(n => n.id)).toEqual([2])
+    expect(noteSnippet({ ...notes[0]!, snippet: '' })).toBe('No additional text')
+  })
+
+  it('formats without a caret', () => {
+    expect(formatNote('Plan\nBuy milk', 'check')).toBe('Plan\n- [ ] Buy milk')
+    expect(formatNote('Plan\nBuy milk', 'list')).toBe('Plan\n- Buy milk')
+    expect(formatNote('Plan\nShopping', 'heading')).toBe('Plan\n# Shopping')
+    expect(formatNote('Plan', 'title')).toBe('# Plan')
+    expect(formatNote('# Plan', 'title')).toBe('Plan')
+    expect(formatNote('Plan', 'bold')).toBe('Plan **bold**')
+    expect(formatNote('', 'italic')).toBe('*italic*')
+  })
+})
+
+describe('native completions', () => {
+  it('asks only once there is something to continue', () => {
+    expect(completionRequest('note', 'short')).toBeNull()
+    expect(completionRequest('note', 'A long enough sentence', 'Trip')).toEqual({ kind: 'note', context: 'Trip', before: 'A long enough sentence', after: '' })
+  })
+
+  it('joins and trims a suggestion', () => {
+    expect(acceptCompletion('Pack the', 'blue bag')).toBe('Pack the blue bag')
+    expect(acceptCompletion('Pack the ', 'blue bag')).toBe('Pack the blue bag')
+    expect(acceptCompletion('End.', '')).toBe('End.')
+    expect(cleanCompletion('one paragraph\n\nanother')).toBe('one paragraph')
+    expect(cleanCompletion(42)).toBe('')
+    expect(cleanCompletion('x'.repeat(300)).length).toBe(200)
   })
 })
 
 describe('native offline cache', () => {
   it('keys saved data by account', () => {
-    expect(cacheKey(11, 'todos')).toBe('kept.cache.11.todos')
-    expect(cacheKey(11, 'prompts.4')).toBe('kept.cache.11.prompts.4')
+    expect(cacheKey(11, 'todos')).toBe('library.cache.11.todos')
+    expect(cacheKey(11, 'prompts.4')).toBe('library.cache.11.prompts.4')
   })
 
   it('caps what it keeps', () => {

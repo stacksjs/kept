@@ -67,10 +67,10 @@ onMount(async () => {
   </View>
   <View class="flex-col gap-2 pt-4 border-t" style="border-color: separator">
     <Text class="font-semibold text-[11px]" style="color: secondaryLabel" :text="'APPEARANCE'" />
-    <Text class="text-[12.5px]" :text="'Kept follows your Mac, now ' + (scheme() === 'dark' ? 'Dark' : 'Light') + '.'" testID="settings-appearance" />
+    <Text class="text-[12.5px]" :text="'Library follows your Mac, now ' + (scheme() === 'dark' ? 'Dark' : 'Light') + '.'" testID="settings-appearance" />
     <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Change it in System Settings, Appearance.'" />
   </View>
   <View class="flex-1" />
   <Text :if="note()" class="text-[11.5px]" style="color: secondaryLabel" :text="note()" testID="settings-note" />
-  <Text class="text-[10.5px]" style="color: secondaryLabel" :text="version ? 'Kept ' + version : 'Kept for Mac'" />
+  <Text class="text-[10.5px]" style="color: secondaryLabel" :text="version ? 'Library ' + version : 'Library for Mac'" />
 </View>

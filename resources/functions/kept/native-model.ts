@@ -1,36 +1,46 @@
 /**
  * The Mac app's pure logic: what the sidebar lists, which pane a sidebar row
  * opens, what a new to-do gets from the list it is typed into, how a list is
- * grouped and what each row's chips say, prompt variables, note check lines,
- * and the offline cache's keys and limits. Nothing here touches Craft, so all
- * of it runs under `bun test`; `native-kept.ts` is the part that does.
+ * laid out in blocks (Things: Today and This Evening, Upcoming's days, the
+ * projects in Anytime), what each row shows, how Notes groups its list by
+ * date, prompt variables, note check lines and formatting, inline completion
+ * text, and the offline cache's keys and limits. Nothing here touches Craft,
+ * so all of it runs under `bun test`; `native-kept.ts` is the part that does.
  */
 import { addDays } from '../../../app/Support/dates'
 import type { SmartList } from '../../../app/Support/lists'
-import { deadlineLabel, deadlineState, groupByDay, shortDate } from './format'
+import { daysBetween, deadlineLabel, deadlineState, groupUpcoming, shortDate } from './format'
+import { applyFormat, type Format } from './markdown'
 import { publicLinkUrl } from './promptview'
-import { newTodoFor, splitToday, viewItems, type View } from './todos'
-import type { Library, LibraryList, SidebarData, Todo } from './types'
+import { byOrder, newTodoFor, splitToday, viewItems, type View } from './todos'
+import type { Library, LibraryList, Note, NoteFolder, Project, SidebarData, Todo } from './types'
 
 // Navigation
 
+export type NoteFolderKey = 'all' | 'trash' | number | `tag:${string}`
+
 export type Nav
   = | { section: 'todos', view: View }
-    | { section: 'notes', folder: 'all' | number }
+    | { section: 'notes', folder: NoteFolderKey }
     | { section: 'prompts', library: number }
 
 export const SMART_LISTS: Array<{ name: SmartList, label: string, icon: string, color: string, shortcut: string }> = [
-  { name: 'inbox', label: 'Inbox', icon: 'tray', color: '#1a7cf5', shortcut: 'cmd+1' },
-  { name: 'today', label: 'Today', icon: 'star.fill', color: '#f2b600', shortcut: 'cmd+2' },
-  { name: 'upcoming', label: 'Upcoming', icon: 'calendar', color: '#e5484d', shortcut: 'cmd+3' },
-  { name: 'anytime', label: 'Anytime', icon: 'square.stack', color: '#12a594', shortcut: 'cmd+4' },
-  { name: 'someday', label: 'Someday', icon: 'archivebox', color: '#b58a1b', shortcut: 'cmd+5' },
-  { name: 'logbook', label: 'Logbook', icon: 'checkmark.square', color: '#2f9e44', shortcut: 'cmd+6' },
+  { name: 'inbox', label: 'Inbox', icon: 'tray.fill', color: '#1a8cff', shortcut: 'cmd+1' },
+  { name: 'today', label: 'Today', icon: 'star.fill', color: '#f7c600', shortcut: 'cmd+2' },
+  { name: 'upcoming', label: 'Upcoming', icon: 'calendar', color: '#f2404f', shortcut: 'cmd+3' },
+  { name: 'anytime', label: 'Anytime', icon: 'square.stack.3d.up.fill', color: '#3ea79a', shortcut: 'cmd+4' },
+  { name: 'someday', label: 'Someday', icon: 'archivebox.fill', color: '#c6b26b', shortcut: 'cmd+5' },
+  { name: 'logbook', label: 'Logbook', icon: 'checkmark.square.fill', color: '#58b05c', shortcut: 'cmd+6' },
 ]
 
 /** The sidebar row id for a pane. */
 export function navId(nav: Nav): string {
-  if (nav.section === 'notes') return nav.folder === 'all' ? 'notes:all' : `folder:${nav.folder}`
+  if (nav.section === 'notes') {
+    const folder = nav.folder
+    if (folder === 'all') return 'notes:all'
+    if (folder === 'trash') return 'notes:trash'
+    return typeof folder === 'number' ? `folder:${folder}` : folder
+  }
   if (nav.section === 'prompts') return `library:${nav.library}`
   const view = nav.view
   return view.kind === 'list' ? `list:${view.name}` : `${view.kind}:${view.id}`
@@ -38,10 +48,13 @@ export function navId(nav: Nav): string {
 
 /** The pane a sidebar row opens, or null for an id that names nothing. */
 export function parseNav(id: string): Nav | null {
-  const [kind = '', rest = ''] = id.split(':')
+  const at = id.indexOf(':')
+  const kind = at < 0 ? id : id.slice(0, at)
+  const rest = at < 0 ? '' : id.slice(at + 1)
   const number = Number(rest)
   if (kind === 'list') return SMART_LISTS.some(list => list.name === rest) ? { section: 'todos', view: { kind: 'list', name: rest as SmartList } } : null
-  if (kind === 'notes' && rest === 'all') return { section: 'notes', folder: 'all' }
+  if (kind === 'notes' && (rest === 'all' || rest === 'trash')) return { section: 'notes', folder: rest }
+  if (kind === 'tag') return /^[\w-]{1,40}$/.test(rest) ? { section: 'notes', folder: `tag:${rest.toLowerCase()}` } : null
   if (!Number.isInteger(number) || number <= 0) return null
   if (kind === 'project' || kind === 'area') return { section: 'todos', view: { kind, id: number } }
   if (kind === 'folder') return { section: 'notes', folder: number }
@@ -54,49 +67,89 @@ export interface SidebarSection { id: string, header?: string, items: SidebarIte
 
 const badge = (count: number | undefined): string => (count ? String(count) : '')
 
+/** The SF Symbol for a project's progress ring: empty, a quarter, half, three quarters, done. */
+export function progressSymbol(progress: number): string {
+  if (progress >= 1) return 'checkmark.circle.fill'
+  if (progress >= 0.75) return 'circle.inset.filled'
+  if (progress >= 0.5) return 'circle.righthalf.filled'
+  if (progress > 0) return 'circle.bottomrighthalf.pattern.checkered'
+  return 'circle'
+}
+
+/** Finished and open to-do counts per project, for the progress rings. */
+export function projectProgress(open: Todo[], logbook: Todo[]): Map<number, number> {
+  const totals = new Map<number, { open: number, done: number }>()
+  const add = (id: number | null, key: 'open' | 'done'): void => {
+    if (!id) return
+    const entry = totals.get(id) ?? { open: 0, done: 0 }
+    entry[key]++
+    totals.set(id, entry)
+  }
+  for (const todo of open) add(todo.project_id, 'open')
+  for (const todo of logbook) if (todo.completed_at) add(todo.project_id, 'done')
+  const result = new Map<number, number>()
+  for (const [id, { open: o, done }] of totals) result.set(id, o + done ? done / (o + done) : 0)
+  return result
+}
+
+export interface SidebarExtras {
+  counts?: Partial<SidebarData['lists']>
+  progress?: Map<number, number>
+  tags?: Array<{ name: string, count: number }>
+  trash?: number
+}
+
 /**
- * The outline Things and Notes users expect: the smart lists with their
- * counts, areas with their projects, note folders, prompt libraries, and the
- * libraries other people shared. Empty groups are left out.
+ * Things' outline: Inbox; Today to Someday; Logbook; projects and areas. Each
+ * group is its own section with no header, which the host draws with a gap.
+ * Then Notes (All Notes, folders, Recently Deleted), note tags, prompt
+ * libraries and the libraries other people shared. Empty groups are left out.
  */
-export function sidebarSections(data: SidebarData | null, libraries: LibraryList | null, counts?: Partial<SidebarData['lists']>): SidebarSection[] {
-  const lists = { ...data?.lists, ...counts }
+export function sidebarSections(data: SidebarData | null, libraries: LibraryList | null, extras: SidebarExtras = {}): SidebarSection[] {
+  const lists = { ...data?.lists, ...extras.counts }
   const shown: Partial<Record<SmartList, number>> = { inbox: lists.inbox, today: lists.today }
-  const sections: SidebarSection[] = [{
-    id: 'lists',
-    items: SMART_LISTS.map(list => ({ id: `list:${list.name}`, label: list.label, icon: list.icon, color: list.color, badge: badge(shown[list.name]) })),
-  }]
+  const smart = (name: SmartList): SidebarItem => {
+    const list = SMART_LISTS.find(l => l.name === name)!
+    return { id: `list:${name}`, label: list.label, icon: list.icon, color: list.color, badge: badge(shown[name]) }
+  }
+  const sections: SidebarSection[] = [
+    { id: 'inbox', items: [smart('inbox')] },
+    { id: 'lists', items: [smart('today'), smart('upcoming'), smart('anytime'), smart('someday')] },
+    { id: 'logbook', items: [smart('logbook')] },
+  ]
 
   const projects = data?.projects ?? []
   const areas = data?.areas ?? []
-  const project = (p: SidebarData['projects'][number]): SidebarItem => ({ id: `project:${p.id}`, label: p.title, icon: 'circle.dashed', color: '#1a7cf5', badge: badge(p.open) })
+  const project = (p: Project): SidebarItem => ({ id: `project:${p.id}`, label: p.title, icon: progressSymbol(extras.progress?.get(p.id) ?? 0), color: '#2f6fe4', badge: badge(p.open) })
   const places: SidebarItem[] = projects.filter(p => !p.area_id || !areas.some(a => a.id === p.area_id)).map(project)
   for (const area of areas) {
-    places.push({ id: `area:${area.id}`, label: area.title, icon: 'square.stack.3d.up', color: '#7c7c80', badge: '' })
+    places.push({ id: `area:${area.id}`, label: area.title, icon: 'shippingbox', color: '#8e8e93', badge: '' })
     places.push(...projects.filter(p => p.area_id === area.id).map(project))
   }
-  if (places.length) sections.push({ id: 'areas', header: 'Areas', items: places })
+  if (places.length) sections.push({ id: 'areas', items: places })
 
   sections.push({
     id: 'notes',
     header: 'Notes',
     items: [
       { id: 'notes:all', label: 'All Notes', icon: 'note.text', color: '#e8a10c', badge: badge(data?.notes) },
-      ...(data?.note_folders ?? []).map(folder => ({ id: `folder:${folder.id}`, label: folder.title, icon: 'folder', color: '#e8a10c', badge: badge(folder.notes) })),
+      ...(data?.note_folders ?? []).map((folder: NoteFolder) => ({ id: `folder:${folder.id}`, label: folder.title, icon: 'folder', color: '#e8a10c', badge: badge(folder.notes) })),
+      { id: 'notes:trash', label: 'Recently Deleted', icon: 'trash', color: '#8e8e93', badge: badge(extras.trash) },
     ],
   })
+  if (extras.tags?.length) sections.push({ id: 'tags', header: 'Tags', items: extras.tags.map(tag => ({ id: `tag:${tag.name}`, label: `#${tag.name}`, icon: 'number', color: '#8e8e93', badge: badge(tag.count) })) })
 
   const library = (lib: Library, icon: string): SidebarItem => ({ id: `library:${lib.id}`, label: lib.title, icon, color: libraryColor(lib.color), badge: badge(lib.prompts) })
   const owned = libraries?.owned ?? data?.libraries ?? []
-  if (owned.length) sections.push({ id: 'libraries', header: 'Prompt Libraries', items: owned.map(lib => library(lib, 'text.book.closed')) })
+  if (owned.length) sections.push({ id: 'libraries', header: 'Prompt Libraries', items: owned.map(lib => library(lib, 'text.book.closed.fill')) })
   const shared = libraries?.shared ?? []
-  if (shared.length) sections.push({ id: 'shared', header: 'Shared with me', items: shared.map(lib => ({ ...library(lib, 'person.2'), badge: lib.role === 'editor' ? 'Editor' : 'Viewer' })) })
+  if (shared.length) sections.push({ id: 'shared', header: 'Shared with Me', items: shared.map(lib => ({ ...library(lib, 'person.2.fill'), badge: lib.role === 'editor' ? 'Editor' : 'Viewer' })) })
   return sections
 }
 
 /** Library colours are hex; anything else (an old or empty value) falls back to the accent blue. */
 export function libraryColor(color: string | undefined): string {
-  return color && /^#[0-9a-f]{6}$/i.test(color) ? color : '#1a7cf5'
+  return color && /^#[0-9a-f]{6}$/i.test(color) ? color : '#1a8cff'
 }
 
 /** Find a library in either half of the list, with whether this person may change it. */
@@ -110,7 +163,13 @@ export function findLibrary(libraries: LibraryList | null, id: number): { librar
 
 /** The heading over the middle pane. */
 export function navTitle(nav: Nav, data: SidebarData | null, libraries: LibraryList | null): string {
-  if (nav.section === 'notes') return nav.folder === 'all' ? 'All Notes' : data?.note_folders.find(f => f.id === nav.folder)?.title ?? 'Folder'
+  if (nav.section === 'notes') {
+    const folder = nav.folder
+    if (folder === 'all') return 'All Notes'
+    if (folder === 'trash') return 'Recently Deleted'
+    if (typeof folder === 'string') return `#${folder.slice(4)}`
+    return data?.note_folders.find(f => f.id === folder)?.title ?? 'Folder'
+  }
   if (nav.section === 'prompts') return findLibrary(libraries, nav.library)?.library.title ?? 'Prompt Library'
   const view = nav.view
   if (view.kind === 'list') return SMART_LISTS.find(list => list.name === view.name)?.label ?? 'To-Dos'
@@ -120,7 +179,7 @@ export function navTitle(nav: Nav, data: SidebarData | null, libraries: LibraryL
 
 // To-dos
 
-/** What the quick-entry row creates in the open list, or null where nothing can be added (the Logbook). */
+/** What a new to-do gets in the open list, or null where nothing can be added (the Logbook). */
 export function quickEntry(view: View, title: string, today: string): Partial<Todo> | null {
   const name = title.trim()
   const base = newTodoFor(view, today)
@@ -128,83 +187,106 @@ export function quickEntry(view: View, title: string, today: string): Partial<To
   return { ...base, title: name.slice(0, 255) }
 }
 
-export interface TodoGroup { key: string, label: string, sub: string, items: Todo[] }
+export type BlockKind = 'plain' | 'evening' | 'day' | 'month' | 'project' | 'logday'
+export interface TodoBlock { key: string, kind: BlockKind, label: string, number: string, symbol: string, projectId: number | null, items: Todo[] }
 
-/** A list's rows in the sections it shows: Today's evening, Upcoming's days, one plain group otherwise. */
-export function todoGroups(view: View, open: Todo[], logbook: Todo[], today: string, search = ''): TodoGroup[] {
+const block = (key: string, kind: BlockKind, items: Todo[], extra: Partial<TodoBlock> = {}): TodoBlock =>
+  ({ key, kind, label: '', number: '', symbol: '', projectId: null, items, ...extra })
+
+/**
+ * A list laid out the way Things lays it out. Today: the day, then This
+ * Evening. Upcoming: one block per day of the coming week, empty ones too,
+ * then months. Anytime, Someday and areas: loose to-dos, then one block per
+ * project. The Logbook: one block per day finished.
+ */
+export function todoBlocks(view: View, open: Todo[], logbook: Todo[], today: string, projects: Project[] = [], search = '', progress?: Map<number, number>): TodoBlock[] {
   const words = search.toLowerCase().split(/\s+/).filter(Boolean)
   const match = (todo: Todo): boolean => !words.length || words.every(word => `${todo.title}\n${todo.notes}\n${todo.tags.join(' ')}`.toLowerCase().includes(word))
   const isLog = view.kind === 'list' && view.name === 'logbook'
   const items = viewItems(isLog ? [...open, ...logbook] : open, view, today).filter(match)
   if (view.kind === 'list' && view.name === 'today') {
     const { main, evening } = splitToday(items)
-    const groups: TodoGroup[] = [{ key: 'today', label: '', sub: '', items: main }]
-    if (evening.length) groups.push({ key: 'evening', label: 'This Evening', sub: '', items: evening })
-    return groups
+    const blocks = [block('today', 'plain', main)]
+    if (evening.length) blocks.push(block('evening', 'evening', evening, { label: 'This Evening', symbol: 'moon.fill' }))
+    return blocks
   }
-  if (view.kind === 'list' && view.name === 'upcoming')
-    return groupByDay(items, today).map(group => ({ key: group.key, label: group.label, sub: group.sub, items: group.items }))
-  return [{ key: 'all', label: '', sub: '', items }]
+  if (view.kind === 'list' && view.name === 'upcoming') {
+    return groupUpcoming(items, today).map(day => block(day.key, day.number ? 'day' : 'month', day.items, { label: day.label, number: day.number }))
+  }
+  if (isLog) {
+    const days = new Map<string, Todo[]>()
+    for (const todo of items) {
+      const at = String(todo.completed_at ?? todo.canceled_at ?? '').slice(0, 10)
+      days.set(at, [...(days.get(at) ?? []), todo])
+    }
+    return [...days].sort((a, b) => b[0].localeCompare(a[0])).map(([day, rows]) => block(`log-${day}`, 'logday', rows, { label: day === today ? 'Today' : daysBetween(day, today) === 1 ? 'Yesterday' : shortDate(day, today) }))
+  }
+  if (view.kind === 'project') return [block('project', 'plain', items)]
+  const loose = items.filter(todo => !todo.project_id)
+  const blocks: TodoBlock[] = [block('loose', 'plain', loose)]
+  const order = projects.map(p => p.id)
+  const ids = [...new Set(items.filter(todo => todo.project_id).map(todo => todo.project_id!))]
+    .sort((a, b) => (order.indexOf(a) + 1 || 1e9) - (order.indexOf(b) + 1 || 1e9))
+  for (const id of ids) {
+    const title = projects.find(p => p.id === id)?.title ?? 'Project'
+    blocks.push(block(`project-${id}`, 'project', items.filter(todo => todo.project_id === id).sort(byOrder), { label: title, projectId: id, symbol: progressSymbol(progress?.get(id) ?? 0) }))
+  }
+  return blocks
 }
 
-export type ChipTone = 'when' | 'overdue' | 'due' | 'deadline' | 'tag' | 'check' | 'repeat' | 'project'
-export interface Chip { text: string, tone: ChipTone, symbol: string }
+export interface RowMarks {
+  /** A yellow star before the title: the to-do is in Today, shown outside Today. */
+  star: boolean
+  /** The moon: in This Evening, shown outside Today. */
+  evening: boolean
+  notes: boolean
+  project: string
+  /** A scheduled date shown outside Upcoming. */
+  date: string
+  deadline: string
+  overdue: boolean
+  checklist: string
+  repeat: boolean
+  tags: string[]
+}
 
-/** The small labels after a to-do's title, in the order Things shows them. */
-export function todoChips(todo: Todo, view: View, today: string, projectTitle?: (id: number) => string | undefined): Chip[] {
-  const chips: Chip[] = []
+/** What a row shows beside its title, the Things way: glyphs and grey text, no pills except tags. */
+export function rowMarks(todo: Todo, view: View, today: string, projectTitle?: (id: number) => string | undefined): RowMarks {
   const list = view.kind === 'list' ? view.name : null
-  if (todo.project_id && view.kind !== 'project') {
-    const title = projectTitle?.(todo.project_id)
-    if (title) chips.push({ text: title, tone: 'project', symbol: 'circle.dashed' })
+  const open = !todo.completed_at && !todo.canceled_at
+  const scheduled = !!todo.start_date && todo.start_date > today
+  const inToday = open && !scheduled && (todo.when === 'today' || todo.when === 'evening' || (!!todo.start_date && todo.start_date <= today))
+  const done = todo.checklist.filter(item => item.done).length
+  return {
+    star: inToday && list !== 'today' && todo.when !== 'evening',
+    evening: inToday && list !== 'today' && todo.when === 'evening',
+    notes: !!todo.notes?.trim(),
+    project: todo.project_id && view.kind !== 'project' ? projectTitle?.(todo.project_id) ?? '' : '',
+    date: open && scheduled && list !== 'upcoming' ? shortDate(todo.start_date!, today) : '',
+    deadline: open && todo.deadline ? deadlineLabel(todo.deadline, today) : '',
+    overdue: open && !!todo.deadline && deadlineState(todo.deadline, today) !== 'later',
+    checklist: todo.checklist.length ? `${done}/${todo.checklist.length}` : '',
+    repeat: !!todo.repeat && todo.repeat !== 'none',
+    tags: todo.tags.slice(0, 3),
   }
-  if (!todo.completed_at) {
-    if (todo.start_date && todo.start_date > today) {
-      if (list !== 'upcoming') chips.push({ text: shortDate(todo.start_date, today), tone: 'when', symbol: 'calendar' })
-    }
-    else if (list !== 'today' && (todo.when === 'today' || todo.when === 'evening' || (todo.start_date && todo.start_date <= today))) {
-      chips.push({ text: todo.when === 'evening' ? 'This Evening' : 'Today', tone: 'when', symbol: todo.when === 'evening' ? 'moon.fill' : 'star.fill' })
-    }
-    else if (todo.when === 'someday' && list !== 'someday') {
-      chips.push({ text: 'Someday', tone: 'when', symbol: 'archivebox' })
-    }
-  }
-  if (todo.deadline && !todo.completed_at) {
-    const state = deadlineState(todo.deadline, today)
-    chips.push({ text: deadlineLabel(todo.deadline, today), tone: state === 'overdue' ? 'overdue' : state === 'later' ? 'deadline' : 'due', symbol: 'flag.fill' })
-  }
-  if (todo.repeat && todo.repeat !== 'none') chips.push({ text: todo.repeat[0]!.toUpperCase() + todo.repeat.slice(1), tone: 'repeat', symbol: 'repeat' })
-  if (todo.checklist.length) chips.push({ text: `${todo.checklist.filter(item => item.done).length}/${todo.checklist.length}`, tone: 'check', symbol: 'checklist' })
-  for (const tag of todo.tags) chips.push({ text: tag, tone: 'tag', symbol: '' })
-  return chips
 }
 
-/** A chip's text and fill on a light or dark surface; every pair keeps 4.5:1 contrast. */
-export function chipColors(tone: ChipTone, dark: boolean): { fg: string, bg: string } {
-  switch (tone) {
-    case 'overdue': return dark ? { fg: '#ff8a8a', bg: '#3a1d1f' } : { fg: '#b4232a', bg: '#fde8e8' }
-    case 'due': return dark ? { fg: '#ffb86b', bg: '#3a2a17' } : { fg: '#9a4a00', bg: '#fdf0e1' }
-    case 'when': return dark ? { fg: '#f5cf4a', bg: '#33301d' } : { fg: '#7a5a00', bg: '#fbf3d5' }
-    case 'tag': return dark ? { fg: '#c7c7cc', bg: '#3a3a3c' } : { fg: '#48484a', bg: '#ececee' }
-    case 'project': return dark ? { fg: '#8cb8ff', bg: '#1d2a3d' } : { fg: '#1652b8', bg: '#e6efff' }
-    default: return dark ? { fg: '#aeaeb2', bg: 'transparent' } : { fg: '#6e6e73', bg: 'transparent' }
-  }
+/** The When chip in an open to-do: what it says and its glyph. */
+export function whenChip(todo: Pick<Todo, 'when' | 'start_date'>, today: string): { label: string, symbol: string, color: string } {
+  if (todo.start_date && todo.start_date > today) return { label: shortDate(todo.start_date, today), symbol: 'calendar', color: '#f2404f' }
+  if (todo.when === 'evening') return { label: 'This Evening', symbol: 'moon.fill', color: '#4f6bd8' }
+  if (todo.when === 'today' || (todo.start_date && todo.start_date <= today)) return { label: 'Today', symbol: 'star.fill', color: '#f7c600' }
+  if (todo.when === 'someday') return { label: 'Someday', symbol: 'archivebox.fill', color: '#c6b26b' }
+  if (todo.when === 'anytime') return { label: 'Anytime', symbol: 'square.stack.3d.up.fill', color: '#3ea79a' }
+  return { label: 'When', symbol: 'calendar', color: '#8e8e93' }
 }
 
 export const REPEATS = [
   { value: 'none', label: 'Never' },
-  { value: 'daily', label: 'Every day' },
-  { value: 'weekly', label: 'Every week' },
-  { value: 'monthly', label: 'Every month' },
-  { value: 'yearly', label: 'Every year' },
-]
-
-export const WHEN_CHOICES = [
-  { value: 'inbox', label: 'Inbox' },
-  { value: 'today', label: 'Today' },
-  { value: 'evening', label: 'This Evening' },
-  { value: 'anytime', label: 'Anytime' },
-  { value: 'someday', label: 'Someday' },
+  { value: 'daily', label: 'Every Day' },
+  { value: 'weekly', label: 'Every Week' },
+  { value: 'monthly', label: 'Every Month' },
+  { value: 'yearly', label: 'Every Year' },
 ]
 
 /** A real `YYYY-MM-DD` calendar day. */
@@ -218,12 +300,13 @@ export function isDay(value: string): boolean {
 export function parseDayField(text: string): { ok: true, value: string | null } | { ok: false } {
   const value = text.trim()
   if (!value) return { ok: true, value: null }
-  if (/^tomorrow$/i.test(value)) return { ok: true, value: 'tomorrow' }
+  if (/^(today|tomorrow)$/i.test(value)) return { ok: true, value: value.toLowerCase() }
   return isDay(value) ? { ok: true, value } : { ok: false }
 }
 
-/** `tomorrow` typed into a date field, made a date. */
+/** `today` or `tomorrow` typed into a date field, made a date. */
 export function resolveDay(value: string | null, today: string): string | null {
+  if (value === 'today') return today
   return value === 'tomorrow' ? addDays(today, 1) : value
 }
 
@@ -300,25 +383,159 @@ export function appendCheckLine(body: string): string {
   return `${body.replace(/\n+$/, '')}\n- [ ] `
 }
 
-/** A note's date in the list: a time today, else a short date. Avoids Intl, which the script engine may lack. */
+export type NoteFormat = Format | 'title'
+
+/**
+ * The Format menu applied without a caret (the host does not report one): line
+ * formats change the last line that has text, bold and italic add an empty pair
+ * at the end to type into. Title is a top-level heading.
+ */
+export function formatNote(body: string, kind: NoteFormat): string {
+  const trimmed = body.replace(/\s+$/, '')
+  if (kind === 'bold' || kind === 'italic') {
+    const mark = kind === 'bold' ? '**' : '*'
+    return `${trimmed}${trimmed ? ' ' : ''}${mark}${kind === 'bold' ? 'bold' : 'italic'}${mark}`
+  }
+  if (kind === 'title') {
+    const lines = trimmed.split('\n')
+    const index = lines.length - 1
+    lines[index] = /^#\s/.test(lines[index]!) ? lines[index]!.replace(/^#\s+/, '') : `# ${lines[index]!.replace(/^#{1,3}\s+/, '')}`
+    return lines.join('\n')
+  }
+  return applyFormat(trimmed, trimmed.length, trimmed.length, kind).body
+}
+
+const TAG = /(^|[\s(])#([A-Za-z0-9_-]{1,40})/g
+
+/** The `#tags` in a note, lower case, each once. `# Heading` (a space after #) is not a tag. */
+export function noteTagList(body: string): string[] {
+  const found: string[] = []
+  TAG.lastIndex = 0
+  let match = TAG.exec(body)
+  while (match) {
+    const tag = match[2]!.toLowerCase()
+    if (!found.includes(tag)) found.push(tag)
+    match = TAG.exec(body)
+  }
+  return found
+}
+
+export function noteTagCounts(notes: Note[]): Array<{ name: string, count: number }> {
+  const counts = new Map<string, number>()
+  for (const note of notes) for (const tag of noteTagList(note.body)) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+  return [...counts].map(([name, count]) => ({ name, count })).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** The notes in a folder, a tag or all of them, holding every word of the search. */
+export function notesIn(notes: Note[], folder: NoteFolderKey, search: string): Note[] {
+  const words = search.toLowerCase().split(/\s+/).filter(Boolean)
+  return notes.filter((note) => {
+    if (typeof folder === 'number' && note.note_folder_id !== folder) return false
+    if (typeof folder === 'string' && folder.startsWith('tag:') && !noteTagList(note.body).includes(folder.slice(4))) return false
+    if (!words.length) return true
+    const text = `${note.title}\n${note.body}`.toLowerCase()
+    return words.every(word => text.includes(word))
+  })
+}
+
+export interface NoteGroup { key: string, label: string, notes: Note[] }
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+const localDay = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+
+/**
+ * Notes.app's list: Pinned first, then Today, Yesterday, Previous 7 Days,
+ * Previous 30 Days, then one group per month (with the year once it is not
+ * this year), newest edit first in each.
+ */
+export function noteDateGroups(notes: Note[], now: Date = new Date()): NoteGroup[] {
+  const sorted = [...notes].sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)) || b.id - a.id)
+  const groups: NoteGroup[] = []
+  const add = (key: string, label: string, note: Note): void => {
+    let group = groups.find(g => g.key === key)
+    if (!group) { group = { key, label, notes: [] }; groups.push(group) }
+    group.notes.push(note)
+  }
+  const today = localDay(now)
+  for (const note of sorted) {
+    if (note.pinned) { add('pinned', 'Pinned', note); continue }
+    const when = new Date(note.updated_at)
+    if (Number.isNaN(when.getTime())) { add('older', 'Older', note); continue }
+    const age = daysBetween(localDay(when), today)
+    if (age <= 0) add('today', 'Today', note)
+    else if (age === 1) add('yesterday', 'Yesterday', note)
+    else if (age <= 7) add('week', 'Previous 7 Days', note)
+    else if (age <= 30) add('month', 'Previous 30 Days', note)
+    else add(`m-${when.getFullYear()}-${when.getMonth()}`, `${MONTHS[when.getMonth()]}${when.getFullYear() === now.getFullYear() ? '' : ` ${when.getFullYear()}`}`, note)
+  }
+  const rank = (key: string): number => ['pinned', 'today', 'yesterday', 'week', 'month'].indexOf(key)
+  return groups.sort((a, b) => {
+    const ra = rank(a.key)
+    const rb = rank(b.key)
+    if (ra >= 0 || rb >= 0) return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb)
+    return b.notes[0]!.updated_at.localeCompare(a.notes[0]!.updated_at)
+  })
+}
+
+/** A note's date in the list: a time today, `Yesterday`, a weekday this week, else a short date. Avoids Intl, which the script engine may lack. */
 export function noteStamp(iso: string, now: Date = new Date()): string {
   const when = new Date(iso)
   if (Number.isNaN(when.getTime())) return ''
-  const day = (date: Date): string => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
-  if (day(when) === day(now)) {
+  const age = daysBetween(localDay(when), localDay(now))
+  if (age <= 0) {
     const hours = when.getHours()
     return `${hours % 12 || 12}:${String(when.getMinutes()).padStart(2, '0')} ${hours < 12 ? 'AM' : 'PM'}`
   }
-  return shortDate(day(when), day(now))
+  if (age === 1) return 'Yesterday'
+  if (age < 7) return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][when.getDay()]!
+  return `${when.getMonth() + 1}/${when.getDate()}/${String(when.getFullYear()).slice(2)}`
+}
+
+/** The second line of a note row: what follows the title, or "No additional text" as Notes says. */
+export function noteSnippet(note: Note): string {
+  const snippet = note.snippet?.trim()
+  return snippet || 'No additional text'
+}
+
+// Inline completion (ghost text)
+
+export type CompletionKind = 'note' | 'prompt' | 'todo-notes'
+
+/** Wait this long after the last keystroke before asking for a completion. */
+export const COMPLETION_DELAY = 600
+
+/**
+ * The request for a completion at the end of the text (the host reports no
+ * caret, so the caret is taken to be at the end, where people type). Nothing
+ * is asked for an empty text, one that ends mid-word-boundary noise, or a
+ * very short one.
+ */
+export function completionRequest(kind: CompletionKind, text: string, context = ''): { kind: CompletionKind, context: string, before: string, after: string } | null {
+  if (text.trim().length < 12) return null
+  return { kind, context: context.slice(0, 500), before: text.slice(-4000), after: '' }
+}
+
+/** Accept a completion: append it, with a space where the text and the suggestion would run together. */
+export function acceptCompletion(text: string, completion: string): string {
+  if (!completion) return text
+  const needsSpace = /\S$/.test(text) && /^[A-Za-z0-9]/.test(completion)
+  return `${text}${needsSpace ? ' ' : ''}${completion}`
+}
+
+/** The suggestion trimmed to what fits after a caret: one paragraph, at most 200 characters. */
+export function cleanCompletion(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  const first = value.replace(/\r/g, '').split(/\n{2,}/)[0] ?? ''
+  return first.slice(0, 200).replace(/\s+$/, '')
 }
 
 // Offline cache
 
-export type CacheName = 'sidebar' | 'libraries' | 'todos' | 'notes' | `prompts.${number}`
+export type CacheName = 'sidebar' | 'libraries' | 'todos' | 'notes' | 'trash' | `prompts.${number}`
 
 /** Saved data is per account, so a second person signing in on the Mac never sees the first one's lists. */
 export function cacheKey(account: number | string, name: CacheName): string {
-  return `kept.cache.${account}.${name}`
+  return `library.cache.${account}.${name}`
 }
 
 /** The most rows of each kind the cache keeps; UserDefaults is not a database. */
@@ -330,7 +547,7 @@ export function capForCache<T>(name: CacheName, value: T): T {
     const todos = value as unknown as { open: unknown[], logbook: unknown[] }
     return { ...todos, open: todos.open.slice(0, CACHE_LIMITS.todos), logbook: todos.logbook.slice(0, CACHE_LIMITS.logbook) } as T
   }
-  if (name === 'notes' && Array.isArray(value)) return value.slice(0, CACHE_LIMITS.notes) as T
+  if ((name === 'notes' || name === 'trash') && Array.isArray(value)) return value.slice(0, CACHE_LIMITS.notes) as T
   if (name.startsWith('prompts.')) {
     const prompts = value as unknown as { prompts?: unknown[] }
     if (Array.isArray(prompts?.prompts)) return { ...prompts, prompts: prompts.prompts.slice(0, CACHE_LIMITS.prompts) } as T

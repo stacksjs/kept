@@ -1,9 +1,9 @@
 <script client>
 import { today as deviceDay } from '../functions/kept/api'
 import { toggleCheckLine } from '../functions/kept/markdown'
-import { apiOrigin, desktop, keychainSession, nativeApi, nativeCraft, palette, readCache, saveAccount, savedAccount, writeCache } from '../functions/kept/native-kept'
-import { appendCheckLine, checkLines, NEW_PROMPT_BODY, chipColors, eventText, eventValue, fillPrompt, findLibrary, isOfflineError, navId, navTitle, noteStamp, parseDayField, parseNav, promptVariables, quickEntry, REPEATS, resolveDay, shareLink, SMART_LISTS, sidebarSections, todoChips, todoGroups, toggleChecklist, WHEN_CHOICES } from '../functions/kept/native-model'
-import { filterNotes, groupNotes, normalizeNote } from '../functions/kept/notes'
+import { apiOrigin, desktop, keychainSession, nativeApi, nativeCraft, palette, readCache, requestCompletion, saveAccount, savedAccount, writeCache } from '../functions/kept/native-kept'
+import { acceptCompletion, appendCheckLine, checkLines, COMPLETION_DELAY, completionRequest, eventText, eventValue, fillPrompt, findLibrary, formatNote, isOfflineError, navId, navTitle, NEW_PROMPT_BODY, noteDateGroups, noteSnippet, noteStamp, noteTagCounts, notesIn, parseDayField, parseNav, projectProgress, promptVariables, quickEntry, REPEATS, resolveDay, rowMarks, shareLink, SMART_LISTS, sidebarSections, todoBlocks, toggleChecklist, whenChip } from '../functions/kept/native-model'
+import { daysLeft, normalizeNote } from '../functions/kept/notes'
 import { filterPrompts, normalizePrompt } from '../functions/kept/promptview'
 import { counts, normalizeTodo, parseTagInput, serializeChanges, whenPatch } from '../functions/kept/todos'
 
@@ -21,6 +21,7 @@ const signOuts = state(0)
 const today = state(deviceDay())
 const nav = state({ section: 'todos', view: { kind: 'list', name: 'today' } })
 const search = state('')
+const searching = state(false)
 const offline = state(false)
 const flash = state('')
 const loading = state(false)
@@ -33,21 +34,26 @@ const logbook = state([])
 const todosLoaded = state(false)
 const notes = state([])
 const notesLoaded = state(false)
+const trash = state([])
+const trashDays = state(30)
 const prompts = state([])
 const promptRole = state('owner')
 
-// To-dos
-const quick = state('')
+// The open to-do (Things opens it in place)
 const todoId = state(0)
+const drafting = state(false)
+const draft = state('')
 const dTitle = state('')
 const dNotes = state('')
-const dWhen = state('inbox')
 const dStart = state('')
 const dDeadline = state('')
 const dTags = state('')
-const dRepeat = state('none')
 const dCheck = state('')
 const dHint = state('')
+const showDate = state(false)
+const showDeadline = state(false)
+const showTags = state(false)
+const showChecklist = state(false)
 
 // Notes
 const noteId = state(0)
@@ -69,22 +75,32 @@ const shares = state({ link: null, people: [] })
 const shareEmail = state('')
 const shareRole = state('viewer')
 
+// Inline completion: which editor shows it, and the text
+const ghost = state({ field: '', text: '' })
+
 const view = derived(() => nav().section === 'todos' ? nav().view : null)
-const sections = derived(() => sidebarSections(sidebar(), libraries(), todosLoaded() ? counts(open(), today()) : undefined))
+const progress = derived(() => projectProgress(open(), logbook()))
+const tags = derived(() => noteTagCounts(notes()))
+const sections = derived(() => sidebarSections(sidebar(), libraries(), { counts: todosLoaded() ? counts(open(), today()) : undefined, progress: progress(), tags: tags(), trash: trash().length }))
 const selectedNav = derived(() => navId(nav()))
 const title = derived(() => navTitle(nav(), sidebar(), libraries()))
 const smart = derived(() => view()?.kind === 'list' ? SMART_LISTS.find(list => list.name === view().name) : null)
-const headerSymbol = derived(() => nav().section === 'notes' ? 'note.text' : nav().section === 'prompts' ? 'text.book.closed' : smart()?.icon ?? (view()?.kind === 'area' ? 'square.stack.3d.up' : 'circle.dashed'))
-const headerColor = derived(() => smart()?.color ?? '#1a7cf5')
+const headerSymbol = derived(() => smart()?.icon ?? (view()?.kind === 'area' ? 'shippingbox' : 'circle'))
+const headerColor = derived(() => smart()?.color ?? (view()?.kind === 'area' ? '#8e8e93' : '#2f6fe4'))
 const projectTitle = id => sidebar()?.projects.find(p => p.id === id)?.title
-const groups = derived(() => view() ? todoGroups(view(), open(), logbook(), today(), search()) : [])
-const listCount = derived(() => groups().reduce((total, group) => total + group.items.length, 0))
+const blocks = derived(() => view() ? todoBlocks(view(), open(), logbook(), today(), sidebar()?.projects ?? [], search(), progress()) : [])
+const listCount = derived(() => blocks().reduce((total, b) => total + b.items.length, 0))
 const canAdd = derived(() => !!view() && !(view().kind === 'list' && view().name === 'logbook'))
 const selectedTodo = derived(() => open().find(t => t.id === todoId()) ?? logbook().find(t => t.id === todoId()) ?? null)
-const noteSections = derived(() => nav().section === 'notes' ? groupNotes(filterNotes(notes(), nav().folder, search())) : [])
-const noteCount = derived(() => noteSections().reduce((total, group) => total + group.notes.length, 0))
-const selectedNote = derived(() => notes().find(n => n.id === noteId()) ?? null)
+const editing = derived(() => drafting() || !!selectedTodo())
+const chip = derived(() => selectedTodo() ? whenChip(selectedTodo(), today()) : null)
+const notesHeight = derived(() => Math.min(220, Math.max(40, (dNotes().split('\n').length + 1) * 19)))
+const inTrash = derived(() => nav().section === 'notes' && nav().folder === 'trash')
+const noteGroups = derived(() => nav().section !== 'notes' ? [] : noteDateGroups(inTrash() ? notesIn(trash(), 'all', search()) : notesIn(notes(), nav().folder, search())))
+const noteCount = derived(() => noteGroups().reduce((total, g) => total + g.notes.length, 0))
+const selectedNote = derived(() => (inTrash() ? trash() : notes()).find(n => n.id === noteId()) ?? null)
 const noteChecks = derived(() => checkLines(noteBody()))
+const folderName = id => sidebar()?.note_folders.find(f => f.id === id)?.title ?? ''
 const library = derived(() => nav().section === 'prompts' ? findLibrary(libraries(), nav().library) : null)
 const canEdit = derived(() => !!library()?.canEdit && promptRole() !== 'viewer')
 const shownPrompts = derived(() => filterPrompts(prompts(), offline() ? search() : '', false))
@@ -93,8 +109,8 @@ const variables = derived(() => promptVariables(pBody()))
 const filled = derived(() => fillPrompt(pBody(), useValues()))
 const linkUrl = derived(() => shares().link?.token ? shareLink(apiOrigin(), shares().link.token) : '')
 
-function chipsFor(todo) {
-  return todoChips(todo, view() ?? { kind: 'list', name: 'inbox' }, today(), projectTitle).slice(0, 4).map(chip => ({ ...chip, ...chipColors(chip.tone, colors().dark) }))
+function marksFor(todo) {
+  return rowMarks(todo, view() ?? { kind: 'list', name: 'inbox' }, today(), projectTitle)
 }
 
 function say(text) {
@@ -119,12 +135,15 @@ function hydrate() {
   if (todos) { open.set(todos.open || []); logbook.set(todos.logbook || []); todosLoaded.set(true) }
   const saved = readCache(who, 'notes')
   if (saved) { notes.set(saved); notesLoaded.set(true) }
+  trash.set(readCache(who, 'trash') || [])
 }
 
 async function loadSidebar() {
   const [data, libs] = await Promise.all([api.sidebar(today()), api.libraries()])
-  sidebar.set(data); libraries.set(libs)
-  writeCache(account(), 'sidebar', data); writeCache(account(), 'libraries', libs)
+  sidebar.set(data)
+  libraries.set(libs)
+  writeCache(account(), 'sidebar', data)
+  writeCache(account(), 'libraries', libs)
 }
 
 function saveTodos() { writeCache(account(), 'todos', { open: open(), logbook: logbook() }) }
@@ -144,6 +163,13 @@ async function loadNotes() {
   notes.set((await api.notes()).map(row => normalizeNote(row)))
   notesLoaded.set(true)
   writeCache(account(), 'notes', notes())
+}
+
+async function loadTrash() {
+  const result = await api.notesTrash()
+  trash.set(result.notes.map(row => normalizeNote(row)))
+  trashDays.set(result.days || 30)
+  writeCache(account(), 'trash', trash())
 }
 
 async function loadPrompts(id, text = '') {
@@ -167,7 +193,7 @@ async function refreshAll() {
   loading.set(true)
   today.set(deviceDay())
   try {
-    await Promise.all([loadSidebar(), loadTodos(), loadNotes()])
+    await Promise.all([loadSidebar(), loadTodos(), loadNotes(), loadTrash()])
     offline.set(false)
     if (nav().section === 'prompts') await loadPrompts(nav().library)
   }
@@ -188,7 +214,7 @@ async function signInWith(form) {
     startSession(user)
   }
   catch (error) {
-    authError.set(isOfflineError(error) ? 'Kept cannot reach the server. Check your connection and try again.' : (error?.message || 'Those details did not work.'))
+    authError.set(isOfflineError(error) ? 'Library cannot reach the server. Check your connection and try again.' : (error?.message || 'Those details did not work.'))
   }
   finally { authBusy.set(false) }
 }
@@ -202,8 +228,8 @@ function startSession(user) {
 }
 
 function clearData() {
-  sidebar.set(null); libraries.set(null); open.set([]); logbook.set([]); notes.set([]); prompts.set([])
-  todosLoaded.set(false); notesLoaded.set(false); todoId.set(0); noteId.set(0); promptId.set(0)
+  sidebar.set(null); libraries.set(null); open.set([]); logbook.set([]); notes.set([]); trash.set([]); prompts.set([])
+  todosLoaded.set(false); notesLoaded.set(false); todoId.set(0); drafting.set(false); noteId.set(0); promptId.set(0)
   useOpen.set(false); historyOpen.set(false); shareOpen.set(false)
   nav.set({ section: 'todos', view: { kind: 'list', name: 'today' } })
 }
@@ -232,13 +258,16 @@ async function pickNav(id) {
   const next = parseNav(String(id))
   if (!next) return
   await leavePrompt()
-  flushTodo()
+  closeTodo()
+  flushNote()
   nav.set(next)
   search.set('')
+  searching.set(false)
   if (next.section === 'notes') {
-    const first = groupNotes(filterNotes(notes(), next.folder, ''))[0]?.notes[0]
-    selectNote(first ?? null)
+    const pool = next.folder === 'trash' ? trash() : notes()
+    selectNote(noteDateGroups(notesIn(pool, next.folder === 'trash' ? 'all' : next.folder, ''))[0]?.notes[0] ?? null)
     if (!notesLoaded()) loadNotes().catch(error => failed(error, 'Loading notes'))
+    if (next.folder === 'trash') loadTrash().catch(error => failed(error, 'Loading Recently Deleted'))
   }
   if (next.section === 'prompts') {
     prompts.set([])
@@ -246,7 +275,6 @@ async function pickNav(id) {
     await loadPrompts(next.library)
     selectPrompt(prompts()[0] ?? null)
   }
-  if (next.section === 'todos') todoId.set(0)
 }
 
 // To-dos
@@ -256,20 +284,6 @@ function replaceTodo(todo) {
   open.set(open().map(swap))
   logbook.set(logbook().map(swap))
   saveTodos()
-}
-
-async function addQuick() {
-  const fields = quickEntry(view(), quick(), today())
-  if (!fields) return
-  const bottom = Math.max(0, ...open().map(t => t.sort_order || 0))
-  quick.set('')
-  try {
-    const todo = normalizeTodo(await api.createTodo({ ...fields, sort_order: bottom + 1 }))
-    open.set([...open(), todo])
-    saveTodos()
-    loadSidebar().catch(() => {})
-  }
-  catch (error) { quick.set(fields.title); failed(error, 'Adding a to-do') }
 }
 
 async function toggleTodo(todo) {
@@ -294,19 +308,30 @@ async function toggleTodo(todo) {
   catch (error) { failed(error, 'Completing a to-do') }
 }
 
-function selectTodo(todo) {
-  flushTodo()
-  todoId.set(todo?.id ?? 0)
+/** Open a to-do in place. Clicking the open one again closes it. */
+function openTodo(todo) {
+  if (todo && todo.id === todoId()) { closeTodo(); return }
+  closeTodo()
   if (!todo) return
+  todoId.set(todo.id)
   dTitle.set(todo.title)
   dNotes.set(todo.notes || '')
-  dWhen.set(todo.when || 'inbox')
   dStart.set(todo.start_date || '')
   dDeadline.set(todo.deadline || '')
   dTags.set((todo.tags || []).join(', '))
-  dRepeat.set(todo.repeat || 'none')
   dCheck.set('')
   dHint.set('')
+  showDate.set(!!todo.start_date && todo.start_date > today())
+  showDeadline.set(!!todo.deadline)
+  showTags.set(!!todo.tags?.length)
+  showChecklist.set(!!todo.checklist?.length)
+}
+
+function closeTodo() {
+  flushTodo()
+  todoId.set(0)
+  if (drafting()) commitDraft()
+  if (ghost().field === 'todo') ghost.set({ field: '', text: '' })
 }
 
 async function saveTodo(changes, todo = selectedTodo()) {
@@ -327,11 +352,11 @@ function typedChanges() {
   const changes = {}
   if (dTitle().trim() && dTitle().trim() !== todo.title) changes.title = dTitle().trim()
   if (dNotes() !== (todo.notes || '')) changes.notes = dNotes()
-  const tags = parseTagInput(dTags())
-  if (tags.join('\n') !== (todo.tags || []).join('\n')) changes.tags = tags
+  const tagList = parseTagInput(dTags())
+  if (tagList.join('\n') !== (todo.tags || []).join('\n')) changes.tags = tagList
   const start = parseDayField(dStart())
   const deadline = parseDayField(dDeadline())
-  dHint.set(start.ok && deadline.ok ? '' : 'Dates look like 2026-11-04, or type tomorrow.')
+  dHint.set(start.ok && deadline.ok ? '' : 'Dates look like 2026-11-04, or type today or tomorrow.')
   if (start.ok && resolveDay(start.value, today()) !== (todo.start_date || null)) {
     if (start.value) { changes.start_date = resolveDay(start.value, today()); if (todo.when === 'inbox') changes.when = 'anytime' }
     else changes.start_date = null
@@ -352,20 +377,70 @@ const promptFields = { title: pTitle, description: pDesc, tags: pTags, body: pBo
 function editTodo(name, event) {
   todoFields[name].set(eventText(event))
   clearTimeout(todoTimer)
-  todoTimer = setTimeout(() => saveTodo(typedChanges()), 650)
+  todoTimer = setTimeout(() => saveTodo(typedChanges()), 700)
+  if (name === 'notes') suggest('todo', 'todo-notes', dNotes(), dTitle())
 }
 
-function chooseWhen(event) {
-  const value = String(eventValue(event))
-  dWhen.set(value)
-  dStart.set('')
-  saveTodo(value === 'inbox' ? { when: 'inbox', start_date: null } : whenPatch(value))
+async function whenMenu(todo = selectedTodo()) {
+  if (!todo) return
+  const choice = await desktop().contextMenu([
+    { id: 'today', title: 'Today', icon: 'star.fill' },
+    { id: 'evening', title: 'This Evening', icon: 'moon.fill' },
+    { id: 'tomorrow', title: 'Tomorrow', icon: 'sunrise' },
+    { id: 'date', title: 'Choose a Date', icon: 'calendar' },
+    { separator: true },
+    { id: 'anytime', title: 'Anytime', icon: 'square.stack.3d.up' },
+    { id: 'someday', title: 'Someday', icon: 'archivebox' },
+    { id: 'inbox', title: 'Clear (Inbox)', icon: 'tray' },
+  ])
+  if (!choice) return
+  if (choice === 'date') { showDate.set(true); setTimeout(() => desktop().focus('detail-start'), 30); return }
+  dStart.set(choice === 'tomorrow' ? resolveDay('tomorrow', today()) : '')
+  showDate.set(choice === 'tomorrow')
+  const patch = choice === 'tomorrow' ? whenPatch({ date: resolveDay('tomorrow', today()) }) : choice === 'inbox' ? { when: 'inbox', start_date: null } : whenPatch(choice)
+  await saveTodo(patch, todo)
 }
 
-function chooseRepeat(event) {
-  const value = String(eventValue(event))
-  dRepeat.set(value)
-  saveTodo({ repeat: value })
+async function repeatMenu(todo = selectedTodo()) {
+  if (!todo) return
+  const choice = await desktop().contextMenu(REPEATS.map(r => ({ id: r.value, title: r.label, checked: (todo.repeat || 'none') === r.value })))
+  if (choice) await saveTodo({ repeat: choice }, todo)
+}
+
+async function moveMenu(todo = selectedTodo()) {
+  if (!todo) return
+  const data = sidebar()
+  const items = [{ id: 'inbox', title: 'Inbox', icon: 'tray' }, { separator: true }]
+  for (const p of data?.projects ?? []) items.push({ id: `project:${p.id}`, title: p.title, icon: 'circle', checked: todo.project_id === p.id })
+  for (const a of data?.areas ?? []) items.push({ id: `area:${a.id}`, title: a.title, icon: 'shippingbox', checked: todo.area_id === a.id && !todo.project_id })
+  const choice = await desktop().contextMenu(items)
+  if (!choice) return
+  if (choice === 'inbox') await saveTodo({ project_id: null, area_id: null, when: todo.when === 'anytime' ? 'inbox' : todo.when }, todo)
+  else if (choice.startsWith('project:')) await saveTodo({ project_id: Number(choice.slice(8)), area_id: null }, todo)
+  else await saveTodo({ area_id: Number(choice.slice(5)), project_id: null }, todo)
+}
+
+async function moreMenu(todo = selectedTodo()) {
+  if (!todo) return
+  const done = !!(todo.completed_at || todo.canceled_at)
+  const choice = await desktop().contextMenu([
+    { id: 'toggle', title: done ? 'Mark as Open' : 'Complete', icon: 'checkmark.square' },
+    { id: 'repeat', title: 'Repeat', icon: 'repeat' },
+    { id: 'when', title: 'When', icon: 'calendar' },
+    { id: 'deadline', title: 'Add Deadline', icon: 'flag' },
+    { separator: true },
+    { id: 'delete', title: 'Delete To-Do', icon: 'trash' },
+  ])
+  if (choice === 'toggle') await toggleTodo(todo)
+  if (choice === 'repeat') await repeatMenu(todo)
+  if (choice === 'when') await whenMenu(todo)
+  if (choice === 'deadline') { showDeadline.set(true); setTimeout(() => desktop().focus('detail-deadline'), 30) }
+  if (choice === 'delete') await deleteTodo(todo)
+}
+
+function openChecklist() {
+  showChecklist.set(true)
+  setTimeout(() => desktop().focus('detail-check-input'), 30)
 }
 
 async function addCheckItem() {
@@ -418,26 +493,75 @@ async function deleteTodo(todo = selectedTodo()) {
 }
 
 async function todoMenu(todo) {
-  selectTodo(todo)
   const done = !!(todo.completed_at || todo.canceled_at)
   const choice = await desktop().contextMenu([
-    { id: 'toggle', title: done ? 'Mark as Not Done' : 'Complete', icon: done ? 'circle' : 'checkmark.circle' },
+    { id: 'open', title: 'Open', icon: 'square.and.pencil' },
+    { id: 'toggle', title: done ? 'Mark as Open' : 'Complete', icon: 'checkmark.square' },
     { separator: true },
     { id: 'today', title: 'Today', icon: 'star' },
     { id: 'evening', title: 'This Evening', icon: 'moon' },
-    { id: 'anytime', title: 'Anytime', icon: 'square.stack' },
+    { id: 'anytime', title: 'Anytime', icon: 'square.stack.3d.up' },
     { id: 'someday', title: 'Someday', icon: 'archivebox' },
     { separator: true },
+    { id: 'move', title: 'Move', icon: 'arrow.right' },
     { id: 'delete', title: 'Delete To-Do', icon: 'trash' },
   ])
+  if (choice === 'open') openTodo(todo)
   if (choice === 'toggle') await toggleTodo(todo)
+  if (choice === 'move') await moveMenu(todo)
   if (choice === 'delete') await deleteTodo(todo)
-  if (['today', 'evening', 'anytime', 'someday'].includes(choice)) { dWhen.set(choice); dStart.set(''); await saveTodo(whenPatch(choice), todo) }
+  if (['today', 'evening', 'anytime', 'someday'].includes(choice)) await saveTodo(whenPatch(choice), todo)
 }
 
+/** New To-Do opens an empty one in place at the top of the list, the way Things does. */
 function newTodo() {
   if (!canAdd()) pickNav('list:inbox')
-  setTimeout(() => desktop().focus('quick-entry'), 50)
+  closeTodo()
+  draft.set('')
+  drafting.set(true)
+  setTimeout(() => desktop().focus('draft-title'), 60)
+}
+
+async function commitDraft() {
+  const fields = quickEntry(view() ?? { kind: 'list', name: 'inbox' }, draft(), today())
+  drafting.set(false)
+  draft.set('')
+  if (!fields) return
+  const bottom = Math.max(0, ...open().map(t => t.sort_order || 0))
+  try {
+    const todo = normalizeTodo(await api.createTodo({ ...fields, sort_order: bottom + 1 }))
+    open.set([...open(), todo])
+    saveTodos()
+    loadSidebar().catch(() => {})
+  }
+  catch (error) { failed(error, 'Adding a to-do') }
+}
+
+async function renameList(event) {
+  const name = eventText(event).trim()
+  const current = view()
+  if (!name || !current || current.kind === 'list' || name === title()) return
+  try {
+    if (current.kind === 'project') await api.updateProject(current.id, { title: name })
+    else await api.updateArea(current.id, { title: name })
+    await loadSidebar()
+  }
+  catch (error) { failed(error, 'Renaming') }
+}
+
+async function newList() {
+  const choice = await desktop().contextMenu([
+    { id: 'project', title: 'New Project', icon: 'circle' },
+    { id: 'area', title: 'New Area', icon: 'shippingbox' },
+  ])
+  if (!choice) return
+  try {
+    const created = choice === 'project' ? await api.createProject({ title: 'New Project', when: 'anytime' }) : await api.createArea('New Area')
+    await loadSidebar()
+    await pickNav(`${choice}:${created.id}`)
+    setTimeout(() => desktop().focus('list-title'), 60)
+  }
+  catch (error) { failed(error, 'Creating the list') }
 }
 
 // Notes
@@ -446,7 +570,7 @@ let noteTimer = 0
 async function saveNote(extra = {}) {
   const note = selectedNote()
   clearTimeout(noteTimer)
-  if (!note) return
+  if (!note || inTrash()) return
   const body = noteBody()
   if (body === note.body && !Object.keys(extra).length) return
   try {
@@ -459,19 +583,21 @@ async function saveNote(extra = {}) {
 
 function flushNote() {
   clearTimeout(noteTimer)
-  if (selectedNote() && noteBody() !== selectedNote().body) saveNote()
+  if (selectedNote() && !inTrash() && noteBody() !== selectedNote().body) saveNote()
 }
 
 function selectNote(note) {
   flushNote()
   noteId.set(note?.id ?? 0)
   noteBody.set(note?.body ?? '')
+  if (ghost().field === 'note') ghost.set({ field: '', text: '' })
 }
 
 function editNote(event) {
   noteBody.set(eventText(event))
   clearTimeout(noteTimer)
   noteTimer = setTimeout(() => saveNote(), 800)
+  suggest('note', 'note', noteBody(), selectedNote()?.title ?? '')
 }
 
 function setNoteBody(body) {
@@ -479,10 +605,25 @@ function setNoteBody(body) {
   saveNote()
 }
 
+async function formatMenu() {
+  if (!selectedNote() || inTrash()) return
+  const choice = await desktop().contextMenu([
+    { id: 'title', title: 'Title', icon: 'textformat.size.larger' },
+    { id: 'heading', title: 'Heading', icon: 'textformat.size' },
+    { separator: true },
+    { id: 'bold', title: 'Bold', icon: 'bold' },
+    { id: 'italic', title: 'Italic', icon: 'italic' },
+    { separator: true },
+    { id: 'list', title: 'Bulleted List', icon: 'list.bullet' },
+    { id: 'check', title: 'Checklist', icon: 'checklist' },
+  ])
+  if (choice) setNoteBody(formatNote(noteBody(), choice))
+}
+
 async function newNote() {
-  if (nav().section !== 'notes') await pickNav('notes:all')
+  if (nav().section !== 'notes' || inTrash()) await pickNav('notes:all')
   flushNote()
-  const folder = nav().folder === 'all' ? null : nav().folder
+  const folder = typeof nav().folder === 'number' ? nav().folder : null
   try {
     const note = normalizeNote(await api.saveNote({ body: 'New Note', note_folder_id: folder }))
     notes.set([note, ...notes()])
@@ -490,38 +631,65 @@ async function newNote() {
     selectNote(note)
     writeCache(account(), 'notes', notes())
     loadSidebar().catch(() => {})
-    setTimeout(() => desktop().focus('note-editor'), 50)
+    setTimeout(() => desktop().focus('note-editor'), 60)
   }
   catch (error) { failed(error, 'Creating a note') }
 }
 
+/** Delete moves a note to Recently Deleted, as in Notes; no question asked. */
 async function deleteNote(note = selectedNote()) {
-  if (!note || !await confirmDelete(`"${note.title || 'this note'}"`, 'The note is removed from every device.')) return
+  if (!note) return
+  if (inTrash()) { await purgeNote(note); return }
   try {
     await api.deleteNote(note.id)
     notes.set(notes().filter(n => n.id !== note.id))
-    if (noteId() === note.id) { noteId.set(0); noteBody.set('') }
+    trash.set([{ ...note, deleted_at: new Date().toISOString() }, ...trash()])
+    if (noteId() === note.id) selectNote(noteDateGroups(notesIn(notes(), nav().folder, search()))[0]?.notes[0] ?? null)
     writeCache(account(), 'notes', notes())
     loadSidebar().catch(() => {})
+    say('Moved to Recently Deleted.')
+  }
+  catch (error) { failed(error, 'Deleting the note') }
+}
+
+async function restoreNote(note = selectedNote()) {
+  if (!note) return
+  try {
+    const back = normalizeNote(await api.restoreNote(note.id))
+    trash.set(trash().filter(n => n.id !== note.id))
+    notes.set([back, ...notes().filter(n => n.id !== back.id)])
+    selectNote(trash()[0] ?? null)
+    loadSidebar().catch(() => {})
+    say(`"${back.title || 'Note'}" is back in your notes.`)
+  }
+  catch (error) { failed(error, 'Restoring the note') }
+}
+
+async function purgeNote(note = selectedNote()) {
+  if (!note || !await confirmDelete(`"${note.title || 'this note'}" now`, 'It cannot be brought back.')) return
+  try {
+    await api.purgeNote(note.id)
+    trash.set(trash().filter(n => n.id !== note.id))
+    selectNote(trash()[0] ?? null)
   }
   catch (error) { failed(error, 'Deleting the note') }
 }
 
 async function togglePin(note = selectedNote()) {
-  if (!note) return
+  if (!note || inTrash()) return
   if (note.id !== noteId()) selectNote(note)
   await saveNote({ pinned: !note.pinned })
 }
 
 async function noteMenu(note) {
   selectNote(note)
-  const choice = await desktop().contextMenu([
-    { id: 'pin', title: note.pinned ? 'Unpin Note' : 'Pin Note', icon: 'pin' },
-    { separator: true },
-    { id: 'delete', title: 'Delete Note', icon: 'trash' },
-  ])
+  const choice = await desktop().contextMenu(inTrash()
+    ? [{ id: 'restore', title: 'Recover', icon: 'arrow.uturn.backward' }, { id: 'purge', title: 'Delete Now', icon: 'trash' }]
+    : [{ id: 'pin', title: note.pinned ? 'Unpin Note' : 'Pin Note', icon: 'pin' }, { separator: true }, { id: 'delete', title: 'Delete', icon: 'trash' }])
   if (choice === 'pin') await togglePin(note)
   if (choice === 'delete') await deleteNote(note)
+  if (choice === 'restore') await restoreNote(note)
+  if (choice === 'purge') await purgeNote(note)
 }
 
 // Prompts
@@ -533,11 +701,13 @@ function selectPrompt(prompt) {
   pTags.set((prompt?.tags ?? []).join(', '))
   pBody.set(prompt?.body ?? '')
   pDirty.set(false)
+  if (ghost().field === 'prompt') ghost.set({ field: '', text: '' })
 }
 
 function editPrompt(name, event) {
   promptFields[name].set(eventText(event))
   pDirty.set(true)
+  if (name === 'body' && canEdit()) suggest('prompt', 'prompt', pBody(), pTitle())
 }
 
 async function savePrompt() {
@@ -575,7 +745,7 @@ async function newPrompt() {
     prompts.set([prompt, ...prompts()])
     selectPrompt(prompt)
     loadSidebar().catch(() => {})
-    setTimeout(() => desktop().focus('prompt-title'), 50)
+    setTimeout(() => desktop().focus('prompt-title'), 60)
   }
   catch (error) { failed(error, 'Creating a prompt') }
 }
@@ -693,6 +863,32 @@ async function promptMenu(prompt) {
   if (choice === 'delete') await deletePrompt(prompt)
 }
 
+// Inline completion: ask once typing stops, drop stale answers, show nothing on failure.
+let ghostTimer = 0
+let ghostSeq = 0
+function suggest(field, kind, text, context) {
+  if (ghost().text) ghost.set({ field: '', text: '' })
+  clearTimeout(ghostTimer)
+  const seq = ++ghostSeq
+  const request = completionRequest(kind, text, context)
+  if (!request) return
+  ghostTimer = setTimeout(async () => {
+    const completion = await requestCompletion(session, request)
+    if (seq === ghostSeq && completion) ghost.set({ field, text: completion })
+  }, COMPLETION_DELAY)
+}
+
+function acceptGhost(field, event) {
+  const completion = eventText(event) || ghost().text
+  ghost.set({ field: '', text: '' })
+  if (!completion) return
+  if (field === 'note') setNoteBody(acceptCompletion(noteBody(), completion))
+  if (field === 'prompt') { pBody.set(acceptCompletion(pBody(), completion)); pDirty.set(true) }
+  if (field === 'todo') { dNotes.set(acceptCompletion(dNotes(), completion)); saveTodo(typedChanges()) }
+}
+
+const ghostFor = field => (ghost().field === field ? ghost().text : '')
+
 // Search: prompts ask the server; to-dos and notes filter what is loaded.
 let searchTimer = 0
 function editSearch(event) {
@@ -704,6 +900,12 @@ function editSearch(event) {
   searchTimer = setTimeout(() => loadPrompts(id, text), 250)
 }
 
+function toggleSearch() {
+  searching.set(!searching())
+  if (!searching()) search.set('')
+  else setTimeout(() => desktop().focus('search'), 50)
+}
+
 // Commands
 
 function command(id) {
@@ -712,15 +914,19 @@ function command(id) {
   if (!signedIn()) return
   const section = nav().section
   if (id.startsWith('go:')) pickNav(id.slice(3))
+  else if (id === 'new') { if (section === 'notes') newNote(); else if (section === 'prompts') newPrompt(); else newTodo() }
   else if (id === 'new-todo') newTodo()
   else if (id === 'new-note') newNote()
   else if (id === 'new-prompt') newPrompt()
-  else if (id === 'find') desktop().focus('search')
+  else if (id === 'new-list') newList()
+  else if (id === 'find') { if (section === 'todos') { searching.set(true) } setTimeout(() => desktop().focus('search'), 50) }
   else if (id === 'refresh') refreshAll()
   else if (id === 'sign-out') signOut()
   else if (id === 'save') { if (section === 'prompts') savePrompt(); else if (section === 'notes') saveNote(); else flushTodo() }
   else if (id === 'complete' && section === 'todos') toggleTodo(selectedTodo())
+  else if (id === 'close-todo') closeTodo()
   else if (id === 'toggle-check' && section === 'notes' && selectedNote()) setNoteBody(toggleChecklist(noteBody()))
+  else if (id === 'format' && section === 'notes') formatMenu()
   else if (id === 'pin' && section === 'notes') togglePin()
   else if (id === 'use-prompt' && section === 'prompts') openUse()
   else if (id === 'history' && section === 'prompts') openHistory()
@@ -739,9 +945,11 @@ onMount(async () => {
   onDestroy(() => clearInterval(refresher))
   await desktop().setMenus([
     { label: 'File', items: [
-      { id: 'new-todo', label: 'New To-Do', shortcut: 'cmd+n' },
+      { id: 'new', label: 'New', shortcut: 'cmd+n' },
+      { id: 'new-todo', label: 'New To-Do', shortcut: 'ctrl+cmd+n' },
       { id: 'new-note', label: 'New Note', shortcut: 'shift+cmd+n' },
       { id: 'new-prompt', label: 'New Prompt', shortcut: 'alt+cmd+n' },
+      { id: 'new-list', label: 'New List' },
       { separator: true },
       { id: 'save', label: 'Save', shortcut: 'cmd+s' },
       { separator: true },
@@ -750,12 +958,16 @@ onMount(async () => {
     { label: 'View', items: [
       ...SMART_LISTS.map(list => ({ id: `go:list:${list.name}`, label: list.label, shortcut: list.shortcut })),
       { id: 'go:notes:all', label: 'All Notes', shortcut: 'cmd+7' },
+      { id: 'go:notes:trash', label: 'Recently Deleted' },
       { separator: true },
       { id: 'find', label: 'Find', shortcut: 'cmd+f' },
       { id: 'refresh', label: 'Refresh', shortcut: 'cmd+r' },
     ] },
     { label: 'Item', items: [
       { id: 'complete', label: 'Complete To-Do', shortcut: 'cmd+k' },
+      { id: 'close-todo', label: 'Close To-Do' },
+      { separator: true },
+      { id: 'format', label: 'Format', shortcut: 'shift+cmd+t' },
       { id: 'toggle-check', label: 'Toggle Checklist', shortcut: 'shift+cmd+l' },
       { id: 'pin', label: 'Pin Note' },
       { separator: true },
@@ -773,216 +985,250 @@ onMount(async () => {
 <View class="flex-1 flex-row" testID="main-shell">
   <KeptMacSignIn :if="!signedIn()" class="flex-1" :error="authError()" :busy="authBusy()" :origin="apiOrigin()" :epoch="signOuts()" @submit="signInWith($event)" />
 
-  <View :if="signedIn()" class="flex-col shrink-0 w-[232px] border-r" style="border-color: separator" material="sidebar" testID="sidebar-pane">
+  <View :if="signedIn()" class="flex-col shrink-0 w-[240px] border-r" style="border-color: separator" material="sidebar" testID="sidebar-pane">
     <NativeSidebar class="flex-1" :sections="sections()" :selected="selectedNav()" @change="pickNav(eventValue($event))" testID="sidebar" />
-    <View class="flex-row gap-1 items-center pb-3 pt-1 px-3">
-      <ToolbarButton label="New To-Do" symbol="plus" testID="sidebar-new-todo" @click="newTodo()" />
+    <View class="flex-row items-center px-[12px] h-[40px] border-t" style="border-color: separator">
+      <Button title="New List" symbol="plus" variant="ghost" class="text-[13px]" style="color: secondaryLabel" testID="new-list" @click="newList()" />
       <View class="flex-1" />
-      <ToolbarButton label="Settings" symbol="gearshape" testID="sidebar-settings" @click="openSettings()" />
+      <ToolbarButton label="Settings" symbol="slider.horizontal.3" style="color: #8e8e93" testID="sidebar-settings" @click="openSettings()" />
     </View>
   </View>
 
-  <View :if="signedIn() && nav().section === 'todos'" class="flex-1 flex-col min-w-0" :style="{backgroundColor: colors().list}" testID="todos-pane">
-    <View class="flex-row gap-3 items-center pb-1 pt-5 px-6">
-      <Icon :symbol="headerSymbol()" class="h-[24px] w-[24px]" :style="{color: headerColor()}" />
-      <Text class="flex-1 font-semibold text-[24px]" :numberOfLines="1" :text="title()" testID="list-title" />
-      <View class="w-[190px]"><TextInput type="search" class="h-[26px] text-[12px]" placeholder="Search" :value="search()" @input="editSearch($event)" testID="search" /></View>
-    </View>
-    <Text class="pb-3 px-6 text-[11.5px]" style="color: secondaryLabel" :text="listCount() === 1 ? '1 to-do' : listCount() + ' to-dos'" testID="list-count" />
-    <View :if="offline()" class="pb-2 px-6" testID="offline-note">
-      <View class="flex-row gap-2 items-center px-3 py-[5px] rounded-[7px]" :style="{backgroundColor: colors().hover}">
-        <Icon symbol="wifi.slash" class="h-[13px] w-[13px]" style="color: secondaryLabel" />
-        <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Offline, showing saved items'" />
-      </View>
-    </View>
-    <View :if="canAdd()" class="pb-1 px-4">
-      <View class="flex-row gap-2 items-center pl-2 pr-1 h-[34px] rounded-[8px]" :style="{backgroundColor: colors().hover}">
-      <Icon symbol="plus.circle" class="h-[17px] w-[17px]" style="color: accent" />
-      <View class="flex-1"><TextInput class="h-[22px] text-[13px]" :multiline="true" :bordered="false" placeholder="New To-Do, press Return to add" :value="quick()" @input="quick.set(eventText($event))" @submit="addQuick()" testID="quick-entry" /></View>
-      <Button :if="quick().trim()" title="Add" variant="ghost" class="text-[12px]" testID="quick-add" @click="addQuick()" />
-      </View>
-    </View>
+  <View :if="signedIn() && nav().section === 'todos'" class="flex-1 flex-col min-w-0" :style="{backgroundColor: editing() ? colors().dimmed : colors().list}" testID="todos-pane">
     <ScrollView class="flex-1" testID="todo-list">
-      <View class="flex-col pb-6 pt-1 px-4">
-        <View :for="group in groups()" :key="group.key" class="flex-col">
-          <View :if="group.label" class="flex-row gap-2 items-end pb-1 pt-5 px-2 border-b" style="border-color: separator">
-            <Text class="font-semibold text-[15px]" :text="group.label" />
-            <Text :if="group.sub" class="text-[11.5px]" style="color: secondaryLabel" :text="group.sub" />
-          </View>
-          <KeptMacTodoRow :for="todo in group.items" :key="todo.id" :item="todo" :chips="chipsFor(todo)" :selected="todo.id === todoId()" :colors="colors()" @choose="selectTodo(todo)" @toggle="toggleTodo(todo)" @menu="todoMenu(todo)" />
+      <View class="flex-col pb-[24px] pl-[48px] pr-[40px] pt-[30px]">
+        <View class="flex-row gap-[10px] items-center pl-[12px] h-[36px]">
+          <Icon :symbol="headerSymbol()" class="h-[24px] w-[24px]" :style="{color: headerColor()}" />
+          <Text :if="view()?.kind === 'list'" class="flex-1 font-bold text-[24px]" :numberOfLines="1" :text="title()" testID="list-title" />
+          <View :if="view()?.kind !== 'list'" class="flex-1"><TextInput class="h-[32px] font-bold text-[24px]" :bordered="false" :value="title()" @submit="renameList($event)" @blur="renameList($event)" testID="list-title" /></View>
         </View>
-        <View :if="!listCount()" class="gap-2 items-center pt-16" testID="empty-list">
-          <Icon :symbol="headerSymbol()" class="h-[36px] w-[36px]" style="color: secondaryLabel" />
-          <Text class="text-[13px]" style="color: secondaryLabel" :text="search() ? 'Nothing matches your search.' : loading() && !todosLoaded() ? 'Loading your to-dos' : 'Nothing here. Enjoy the calm.'" />
+        <View :if="searching()" class="pl-[12px] pt-[14px]"><TextInput type="search" class="h-[26px] text-[13px]" placeholder="Search this list" :value="search()" @input="editSearch($event)" testID="search" /></View>
+        <View :if="offline()" class="flex-row gap-[6px] items-center pl-[12px] pt-[10px]" testID="offline-note">
+          <Icon symbol="wifi.slash" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
+          <Text class="text-[12px]" style="color: secondaryLabel" :text="'Offline, showing saved items'" />
+        </View>
+        <View class="h-[16px]" />
+
+        <View :if="drafting()" class="flex-col gap-[6px] mb-[10px] px-[12px] py-[12px] border rounded-[12px]" :style="{backgroundColor: colors().card, borderColor: colors().hairline}" testID="draft-card">
+          <View class="flex-row gap-[9px] items-center">
+            <View class="h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: colors().checkbox}" />
+            <View class="flex-1"><TextInput class="h-[24px] text-[15px]" :bordered="false" placeholder="New To-Do" :value="draft()" @input="draft.set(eventText($event))" @submit="commitDraft()" testID="draft-title" /></View>
+          </View>
+        </View>
+
+        <View :for="b in blocks()" :key="b.key" class="flex-col">
+          <View :if="b.kind === 'project'" class="flex-row gap-[8px] items-center mb-[4px] pb-[6px] pl-[10px] pt-[22px] border-b" :style="{borderColor: colors().hairline}">
+            <Icon :symbol="b.symbol" class="h-[18px] w-[18px]" style="color: #2f6fe4" />
+            <Text class="font-bold text-[16px]" :numberOfLines="1" :text="b.label" />
+          </View>
+          <View :if="b.kind === 'evening'" class="flex-row gap-[7px] items-center mb-[4px] pb-[6px] pl-[11px] pt-[22px] border-b" :style="{borderColor: colors().hairline}">
+            <Icon symbol="moon.fill" class="h-[15px] w-[15px]" style="color: #4f6bd8" />
+            <Text class="font-bold text-[16px]" :text="b.label" />
+          </View>
+          <View :if="b.kind === 'day'" class="flex-row gap-[6px] items-end pb-[4px] pl-[12px] pt-[22px]">
+            <Text class="font-bold text-[24px]" :text="b.number" />
+            <View class="flex-1 flex-col gap-[3px]">
+              <View class="h-[1px]" :style="{backgroundColor: colors().hairline}" />
+              <Text class="pb-[2px] font-bold text-[15px]" style="color: secondaryLabel" :text="b.label" />
+            </View>
+          </View>
+          <View :if="b.kind === 'month'" class="flex-row gap-[8px] items-end pb-[4px] pl-[12px] pt-[24px]">
+            <Text class="font-bold text-[20px]" :text="b.label" />
+            <View class="flex-1 mb-[8px] h-[1px]" :style="{backgroundColor: colors().hairline}" />
+          </View>
+          <Text :if="b.kind === 'logday'" class="pb-[4px] pl-[12px] pt-[16px] font-bold text-[13px]" style="color: secondaryLabel" :text="b.label" />
+          <View :if="b.kind === 'day' && !b.items.length" class="h-[26px]" />
+
+          <View :for="todo in b.items" :key="todo.id" class="flex-col">
+            <KeptMacTodoRow :if="todo.id !== todoId()" :item="todo" :marks="marksFor(todo)" :selected="false" :colors="colors()" @choose="openTodo(todo)" @toggle="toggleTodo(todo)" @menu="todoMenu(todo)" />
+            <View :if="todo.id === todoId()" class="flex-col gap-[4px] my-[10px] pb-[8px] pt-[10px] px-[12px] border rounded-[12px]" :style="{backgroundColor: colors().card, borderColor: colors().hairline}" testID="todo-editor">
+              <View class="flex-row gap-[9px] items-center">
+                <Pressable class="items-center justify-center shrink-0 h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: todo.completed_at ? colors().accent : colors().checkbox, backgroundColor: todo.completed_at ? colors().accent : 'transparent'}" testID="detail-check" @click="toggleTodo(todo)">
+                  <Icon :if="todo.completed_at" symbol="checkmark" class="h-[9px] w-[9px]" style="color: #ffffff" />
+                </Pressable>
+                <View class="flex-1"><TextInput class="h-[24px] text-[15px]" :bordered="false" :value="dTitle()" placeholder="New To-Do" @input="editTodo('title', $event)" @submit="closeTodo()" @blur="flushTodo()" testID="detail-title" /></View>
+              </View>
+              <View class="pl-[14px]">
+                <TextInput class="text-[14px]" :style="{height: notesHeight()}" :multiline="true" :bordered="false" :value="dNotes()" placeholder="Notes" :ghostText="ghostFor('todo')" @input="editTodo('notes', $event)" @blur="flushTodo()" @accept-completion="acceptGhost('todo', $event)" testID="detail-notes" />
+              </View>
+              <View :if="showChecklist() || todo.checklist.length" class="flex-col pl-[23px] pr-[4px] pt-[2px]">
+                <View :for="item in todo.checklist" :key="item.id" class="flex-row gap-[8px] items-center h-[26px] border-b" :style="{borderColor: colors().hairline}">
+                  <Pressable class="items-center justify-center h-[12px] w-[12px] border rounded-[6px]" :style="{borderColor: item.done ? colors().accent : colors().checkbox, backgroundColor: item.done ? colors().accent : 'transparent'}" :testID="'checkitem-' + item.id" @click="toggleCheckItem(item)">
+                    <Icon :if="item.done" symbol="checkmark" class="h-[7px] w-[7px]" style="color: #ffffff" />
+                  </Pressable>
+                  <Text class="flex-1 text-[13px]" :numberOfLines="1" :style="{color: item.done ? 'secondaryLabel' : 'label', textDecorationLine: item.done ? 'line-through' : 'none'}" :text="item.title" />
+                  <ToolbarButton label="Remove item" symbol="xmark" class="text-[11px]" @click="deleteCheckItem(item)" />
+                </View>
+                <View class="flex-row gap-[8px] items-center h-[26px]">
+                  <View class="h-[12px] w-[12px] border rounded-[6px]" :style="{borderColor: colors().checkbox}" />
+                  <View class="flex-1"><TextInput class="h-[22px] text-[13px]" :bordered="false" :value="dCheck()" placeholder="Add checklist item" @input="dCheck.set(eventText($event))" @submit="addCheckItem()" testID="detail-check-input" /></View>
+                </View>
+              </View>
+              <View :if="showDate()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
+                <Icon symbol="calendar" class="h-[13px] w-[13px]" style="color: #f2404f" />
+                <View class="w-[160px]"><TextInput class="h-[22px] text-[13px]" :value="dStart()" placeholder="2026-11-04 or tomorrow" @input="editTodo('start', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-start" /></View>
+              </View>
+              <View :if="showDeadline()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
+                <Icon symbol="flag.fill" class="h-[12px] w-[12px]" style="color: #e5484d" />
+                <Text class="text-[13px]" style="color: secondaryLabel" :text="'Deadline'" />
+                <View class="w-[160px]"><TextInput class="h-[22px] text-[13px]" :value="dDeadline()" placeholder="2026-11-20" @input="editTodo('deadline', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-deadline" /></View>
+              </View>
+              <View :if="showTags()" class="flex-row gap-[8px] items-center pl-[19px] h-[26px]">
+                <Icon symbol="tag" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
+                <View class="flex-1"><TextInput class="h-[22px] text-[13px]" :value="dTags()" placeholder="Tags, separated by commas" @input="editTodo('tags', $event)" @submit="flushTodo()" @blur="flushTodo()" testID="detail-tags" /></View>
+              </View>
+              <Text :if="dHint()" class="pl-[19px] text-[11.5px]" style="color: secondaryLabel" :text="dHint()" testID="detail-hint" />
+              <View class="flex-row gap-[2px] items-center pl-[13px] pt-[8px]">
+                <Pressable class="flex-row gap-[6px] items-center px-[6px] h-[26px] rounded-[6px]" testID="detail-when" @click="whenMenu(todo)">
+                  <Icon :symbol="chip()?.symbol || 'calendar'" class="h-[14px] w-[14px]" :style="{color: chip()?.color || '#8e8e93'}" />
+                  <Text class="text-[14px]" :style="{color: chip()?.label === 'When' ? 'secondaryLabel' : 'label'}" :text="chip()?.label || 'When'" />
+                </Pressable>
+                <Pressable :if="todo.repeat && todo.repeat !== 'none'" class="flex-row gap-[4px] items-center px-[6px] h-[26px]" testID="detail-repeat" @click="repeatMenu(todo)">
+                  <Icon symbol="repeat" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
+                  <Text class="text-[13px]" style="color: secondaryLabel" :text="REPEATS.find(r => r.value === todo.repeat)?.label || ''" />
+                </Pressable>
+                <View class="flex-1" />
+                <ToolbarButton label="Tags" style="color: #a1a1a6" symbol="tag" testID="detail-tags-button" @click="showTags.set(!showTags())" />
+                <ToolbarButton label="Checklist" style="color: #a1a1a6" symbol="checklist" testID="detail-checklist-button" @click="openChecklist()" />
+                <ToolbarButton label="Deadline" style="color: #a1a1a6" symbol="flag" testID="detail-deadline-button" @click="showDeadline.set(!showDeadline())" />
+              </View>
+            </View>
+          </View>
+        </View>
+
+        <View :if="!listCount() && !drafting()" class="gap-[10px] items-center pt-[110px]" testID="empty-list">
+          <Icon :symbol="headerSymbol()" class="h-[72px] w-[72px]" :style="{color: colors().hairline}" />
+          <Text :if="search() || (loading() && !todosLoaded())" class="text-[13px]" style="color: secondaryLabel" :text="search() ? 'Nothing matches your search.' : 'Loading your to-dos'" />
         </View>
       </View>
     </ScrollView>
-    <Text :if="flash()" class="px-6 py-2 text-[11.5px] border-t" style="color: secondaryLabel; border-color: separator" :text="flash()" testID="status-message" />
+    <Text :if="flash()" class="pl-[60px] pr-[40px] py-[6px] text-[12px]" style="color: secondaryLabel" :text="flash()" testID="status-message" />
+    <View class="flex-row gap-[72px] items-center justify-center h-[40px] border-t" :style="{borderColor: colors().hairline, backgroundColor: colors().list}" testID="todo-toolbar">
+      <ToolbarButton style="color: #9a9aa0" :if="!selectedTodo()" label="New To-Do" symbol="plus" :disabled="!canAdd()" testID="toolbar-new" @click="newTodo()" />
+      <ToolbarButton style="color: #9a9aa0" :if="!selectedTodo()" label="When" symbol="calendar" :disabled="true" testID="toolbar-when" />
+      <ToolbarButton style="color: #9a9aa0" label="Move" symbol="arrow.right" :disabled="!selectedTodo()" testID="toolbar-move" @click="moveMenu()" />
+      <ToolbarButton style="color: #9a9aa0" :if="selectedTodo()" label="Delete" symbol="trash" testID="toolbar-delete" @click="deleteTodo()" />
+      <ToolbarButton style="color: #9a9aa0" :if="selectedTodo()" label="More" symbol="ellipsis" testID="toolbar-more" @click="moreMenu()" />
+      <ToolbarButton style="color: #9a9aa0" :if="!selectedTodo()" label="Search" symbol="magnifyingglass" testID="toolbar-search" @click="toggleSearch()" />
+    </View>
   </View>
 
-  <View :if="signedIn() && nav().section === 'todos' && selectedTodo()" class="flex-col shrink-0 w-[360px] border-l" :style="{backgroundColor: colors().detail, borderColor: 'separator'}" testID="todo-detail">
-    <ScrollView class="flex-1">
-      <View class="flex-col gap-3 p-5">
-        <View class="flex-row gap-2 items-center">
-          <Pressable class="items-center justify-center h-[24px] w-[24px]" testID="detail-check" @click="toggleTodo(selectedTodo())">
-            <Icon :symbol="selectedTodo()?.completed_at ? 'checkmark.circle.fill' : 'circle'" class="h-[19px] w-[19px]" :style="{color: selectedTodo()?.completed_at ? 'accent' : 'secondaryLabel'}" />
-          </Pressable>
-          <View class="flex-1"><TextInput class="h-[28px] font-semibold text-[15px]" :value="dTitle()" placeholder="To-do title" @input="editTodo('title', $event)" testID="detail-title" /></View>
-        </View>
-        <TextInput class="h-[96px] text-[13px]" :multiline="true" :value="dNotes()" placeholder="Notes" @input="editTodo('notes', $event)" testID="detail-notes" />
-        <Text class="pt-1 font-semibold text-[11px]" style="color: secondaryLabel" :text="'CHECKLIST'" />
-        <View class="flex-col gap-[2px]">
-          <View :for="item in (selectedTodo()?.checklist || [])" :key="item.id" class="flex-row gap-2 items-center h-[26px]">
-            <Pressable class="items-center justify-center h-[20px] w-[20px]" :testID="'checkitem-' + item.id" @click="toggleCheckItem(item)">
-              <Icon :symbol="item.done ? 'checkmark.circle.fill' : 'circle'" class="h-[14px] w-[14px]" :style="{color: item.done ? 'accent' : 'secondaryLabel'}" />
-            </Pressable>
-            <Text class="flex-1 text-[12.5px]" :numberOfLines="1" :style="{color: item.done ? 'secondaryLabel' : 'label'}" :text="item.title" />
-            <ToolbarButton label="Remove item" symbol="xmark" @click="deleteCheckItem(item)" />
-          </View>
-          <View class="flex-row gap-2 items-center">
-            <View class="flex-1"><TextInput class="h-[24px] text-[12.5px]" :multiline="true" :value="dCheck()" placeholder="Add an item, then Return" @input="dCheck.set(eventText($event))" @submit="addCheckItem()" testID="detail-check-input" /></View>
-            <ToolbarButton label="Add item" symbol="plus" :disabled="!dCheck().trim()" testID="detail-check-add" @click="addCheckItem()" />
-          </View>
-        </View>
-        <View class="flex-row gap-3 items-center pt-1">
-          <Text class="w-[72px] text-[12px]" style="color: secondaryLabel" :text="'When'" />
-          <View class="flex-1"><Picker :value="dWhen()" :options="WHEN_CHOICES" @change="chooseWhen($event)" testID="detail-when" /></View>
-        </View>
-        <View class="flex-row gap-3 items-center">
-          <Text class="w-[72px] text-[12px]" style="color: secondaryLabel" :text="'Start date'" />
-          <View class="flex-1"><TextInput class="h-[24px] text-[12.5px]" :value="dStart()" placeholder="YYYY-MM-DD" @input="editTodo('start', $event)" testID="detail-start" /></View>
-        </View>
-        <View class="flex-row gap-3 items-center">
-          <Text class="w-[72px] text-[12px]" style="color: secondaryLabel" :text="'Deadline'" />
-          <View class="flex-1"><TextInput class="h-[24px] text-[12.5px]" :value="dDeadline()" placeholder="YYYY-MM-DD" @input="editTodo('deadline', $event)" testID="detail-deadline" /></View>
-        </View>
-        <View class="flex-row gap-3 items-center">
-          <Text class="w-[72px] text-[12px]" style="color: secondaryLabel" :text="'Tags'" />
-          <View class="flex-1"><TextInput class="h-[24px] text-[12.5px]" :value="dTags()" placeholder="errands, phone" @input="editTodo('tags', $event)" testID="detail-tags" /></View>
-        </View>
-        <View class="flex-row gap-3 items-center">
-          <Text class="w-[72px] text-[12px]" style="color: secondaryLabel" :text="'Repeat'" />
-          <View class="flex-1"><Picker :value="dRepeat()" :options="REPEATS" @change="chooseRepeat($event)" testID="detail-repeat" /></View>
-        </View>
-        <Text :if="dHint()" class="text-[11px]" style="color: secondaryLabel" :text="dHint()" testID="detail-hint" />
-        <View class="flex-row justify-end pt-2">
-          <Button title="Delete To-Do" symbol="trash" variant="danger" testID="detail-delete" @click="deleteTodo()" />
-        </View>
+  <View :if="signedIn() && nav().section === 'notes'" class="flex-col shrink-0 w-[300px] border-r" :style="{backgroundColor: colors().list, borderColor: 'separator'}" testID="notes-pane">
+    <View class="flex-row gap-[8px] items-center pb-[8px] pt-[14px] px-[16px]">
+      <View class="flex-1 flex-col">
+        <Text class="font-bold text-[15px]" :numberOfLines="1" :text="title()" testID="list-title" />
+        <Text class="text-[12px]" style="color: secondaryLabel" :text="noteCount() === 1 ? '1 note' : noteCount() + ' notes'" testID="note-count" />
       </View>
-    </ScrollView>
-  </View>
-
-  <View :if="signedIn() && nav().section === 'notes'" class="flex-col shrink-0 w-[290px] border-r" :style="{backgroundColor: colors().detail, borderColor: 'separator'}" testID="notes-pane">
-    <View class="flex-row gap-2 items-center pb-2 pt-4 px-4">
-      <Text class="flex-1 font-semibold text-[18px]" :numberOfLines="1" :text="title()" testID="list-title" />
-      <ToolbarButton label="New Note" symbol="square.and.pencil" testID="new-note" @click="newNote()" />
+      <ToolbarButton :if="!inTrash()" label="New Note" symbol="square.and.pencil" testID="new-note" @click="newNote()" />
     </View>
-    <View class="pb-2 px-3"><TextInput type="search" class="h-[26px] text-[12px]" placeholder="Search notes" :value="search()" @input="editSearch($event)" testID="search" /></View>
-    <View :if="offline()" class="pb-2 px-3" testID="offline-note">
-      <View class="flex-row gap-2 items-center px-3 py-[5px] rounded-[7px]" :style="{backgroundColor: colors().hover}">
-        <Icon symbol="wifi.slash" class="h-[13px] w-[13px]" style="color: secondaryLabel" />
-        <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Offline, showing saved items'" />
-      </View>
+    <View class="pb-[6px] px-[12px]"><TextInput type="search" class="h-[26px] text-[13px]" placeholder="Search" :value="search()" @input="editSearch($event)" testID="search" /></View>
+    <View :if="offline()" class="flex-row gap-[6px] items-center pb-[6px] px-[16px]" testID="offline-note">
+      <Icon symbol="wifi.slash" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
+      <Text class="text-[12px]" style="color: secondaryLabel" :text="'Offline, showing saved items'" />
     </View>
+    <Text :if="inTrash()" class="pb-[6px] px-[16px] text-[11.5px]" style="color: secondaryLabel" :text="'Notes are removed for good after ' + trashDays() + ' days.'" />
     <ScrollView class="flex-1" testID="note-list">
-      <View class="flex-col pb-4 px-2">
-        <View :for="group in noteSections()" :key="group.key" class="flex-col gap-[1px]">
-          <Text :if="group.label" class="pb-1 pt-3 px-3 font-semibold text-[11px]" style="color: secondaryLabel" :text="group.label.toUpperCase()" />
-          <KeptMacListRow :for="note in group.notes" :key="note.id" :rowId="'note-' + note.id" :title="note.title" :subtitle="note.snippet" :meta="noteStamp(note.updated_at)" :symbol="note.pinned ? 'pin.fill' : ''" :selected="note.id === noteId()" :colors="colors()" @choose="selectNote(note)" @menu="noteMenu(note)" />
+      <View class="flex-col pb-[12px] px-[8px]">
+        <View :for="group in noteGroups()" :key="group.key" class="flex-col">
+          <Text class="pb-[4px] pt-[12px] px-[14px] font-bold text-[13px]" :text="group.label" />
+          <KeptMacListRow :for="note in group.notes" :key="note.id" :rowId="'note-' + note.id" :title="note.title" :subtitle="noteSnippet(note)" :meta="inTrash() ? daysLeft(note.deleted_at, trashDays()) + ' days' : noteStamp(note.updated_at)" :folder="nav().folder === 'all' && note.note_folder_id ? folderName(note.note_folder_id) : ''" :symbol="note.pinned && group.key !== 'pinned' ? 'pin.fill' : ''" :selected="note.id === noteId()" :fill="colors().noteSelection" @choose="selectNote(note)" @menu="noteMenu(note)" />
         </View>
-        <Text :if="!noteCount()" class="p-4 text-[12px]" style="color: secondaryLabel" :text="search() ? 'No notes match.' : 'No notes yet. Press Shift Command N to start one.'" testID="notes-empty" />
+        <Text :if="!noteCount()" class="p-[16px] text-[12.5px]" style="color: secondaryLabel" :text="search() ? 'No notes match.' : inTrash() ? 'Nothing was deleted recently.' : 'No notes. Press Command N to start one.'" testID="notes-empty" />
       </View>
     </ScrollView>
   </View>
 
   <View :if="signedIn() && nav().section === 'notes'" class="flex-1 flex-col min-w-0" :style="{backgroundColor: colors().list}" testID="note-editor-pane">
-    <View :if="selectedNote()" class="flex-row gap-1 items-center px-4 h-[44px] border-b" style="border-color: separator">
-      <Text class="flex-1 text-[11.5px]" style="color: secondaryLabel" :text="selectedNote() ? 'Edited ' + noteStamp(selectedNote().updated_at) : ''" />
-      <ToolbarButton label="Toggle Checklist" symbol="checklist" testID="note-checklist" @click="setNoteBody(toggleChecklist(noteBody()))" />
-      <ToolbarButton label="Add Check Item" symbol="plus.circle" testID="note-add-check" @click="setNoteBody(appendCheckLine(noteBody()))" />
-      <ToolbarButton :label="selectedNote()?.pinned ? 'Unpin' : 'Pin'" :symbol="selectedNote()?.pinned ? 'pin.slash' : 'pin'" testID="note-pin" @click="togglePin()" />
-      <ToolbarButton label="Delete Note" symbol="trash" testID="note-delete" @click="deleteNote()" />
+    <View class="flex-row gap-[4px] items-center px-[14px] h-[44px] border-b" :style="{borderColor: colors().hairline}">
+      <ToolbarButton :if="!inTrash()" label="Format" symbol="textformat" :disabled="!selectedNote()" testID="note-format" @click="formatMenu()" />
+      <ToolbarButton :if="!inTrash()" label="Checklist" symbol="checklist" :disabled="!selectedNote()" testID="note-checklist" @click="setNoteBody(appendCheckLine(noteBody()))" />
+      <ToolbarButton :if="!inTrash()" :label="selectedNote()?.pinned ? 'Unpin' : 'Pin'" :symbol="selectedNote()?.pinned ? 'pin.slash' : 'pin'" :disabled="!selectedNote()" testID="note-pin" @click="togglePin()" />
+      <View class="flex-1" />
+      <Text :if="selectedNote()" class="text-[12px]" style="color: secondaryLabel" :text="inTrash() ? 'In Recently Deleted' : 'Edited ' + noteStamp(selectedNote().updated_at)" />
+      <View class="flex-1" />
+      <Button :if="inTrash() && selectedNote()" title="Recover" testID="note-restore" @click="restoreNote()" />
+      <ToolbarButton style="color: #9a9aa0" label="Delete" symbol="trash" :disabled="!selectedNote()" testID="note-delete" @click="deleteNote()" />
+      <ToolbarButton :if="!inTrash()" label="New Note" symbol="square.and.pencil" testID="note-new" @click="newNote()" />
     </View>
-    <View :if="selectedNote()" class="flex-1 flex-col pt-3 px-5">
-      <TextInput class="flex-1 text-[14px]" :multiline="true" :bordered="false" :value="noteBody()" placeholder="Start writing" @input="editNote($event)" testID="note-editor" />
+    <View :if="selectedNote()" class="flex-1 flex-col pt-[18px] px-[28px]">
+      <TextInput class="flex-1 text-[15px]" :multiline="true" :bordered="false" :disabled="inTrash()" :value="noteBody()" placeholder="Start writing" :ghostText="ghostFor('note')" @input="editNote($event)" @blur="flushNote()" @accept-completion="acceptGhost('note', $event)" testID="note-editor" />
     </View>
-    <View :if="selectedNote() && noteChecks().length" class="flex-col gap-[2px] px-5 py-3 border-t" style="border-color: separator" testID="note-checks">
-      <Text class="pb-1 font-semibold text-[11px]" style="color: secondaryLabel" :text="'CHECKLIST'" />
-      <Pressable :for="check in noteChecks()" :key="check.line" class="flex-row gap-2 items-center h-[22px]" :testID="'note-check-' + check.line" @click="setNoteBody(toggleCheckLine(noteBody(), check.line))">
-        <Icon :symbol="check.done ? 'checkmark.circle.fill' : 'circle'" class="h-[14px] w-[14px]" :style="{color: check.done ? 'accent' : 'secondaryLabel'}" />
-        <Text class="flex-1 text-[12.5px]" :numberOfLines="1" :style="{color: check.done ? 'secondaryLabel' : 'label'}" :text="check.text || 'Empty item'" />
+    <View :if="selectedNote() && noteChecks().length && !inTrash()" class="flex-col gap-[1px] px-[28px] py-[10px] border-t" :style="{borderColor: colors().hairline}" testID="note-checks">
+      <Pressable :for="check in noteChecks()" :key="check.line" class="flex-row gap-[8px] items-center h-[24px]" :testID="'note-check-' + check.line" @click="setNoteBody(toggleCheckLine(noteBody(), check.line))">
+        <View class="items-center justify-center h-[15px] w-[15px] border rounded-[8px]" :style="{borderColor: check.done ? '#e8a10c' : colors().checkbox, backgroundColor: check.done ? '#e8a10c' : 'transparent'}">
+          <Icon :if="check.done" symbol="checkmark" class="h-[8px] w-[8px]" style="color: #ffffff" />
+        </View>
+        <Text class="flex-1 text-[13.5px]" :numberOfLines="1" :style="{color: check.done ? 'secondaryLabel' : 'label', textDecorationLine: check.done ? 'line-through' : 'none'}" :text="check.text || 'Empty item'" />
       </Pressable>
     </View>
-    <View :if="!selectedNote()" class="flex-1 gap-2 items-center justify-center">
-      <Icon symbol="note.text" class="h-[38px] w-[38px]" style="color: secondaryLabel" />
-      <Text class="text-[13px]" style="color: secondaryLabel" :text="'Choose a note, or start a new one.'" />
-      <Button title="New Note" variant="ghost" @click="newNote()" />
+    <View :if="!selectedNote()" class="flex-1 gap-[8px] items-center justify-center">
+      <Icon symbol="note.text" class="h-[56px] w-[56px]" :style="{color: colors().hairline}" />
+      <Text class="text-[13px]" style="color: secondaryLabel" :text="inTrash() ? 'No note selected' : 'Choose a note, or press Command N.'" />
     </View>
-    <Text :if="flash()" class="px-5 py-2 text-[11.5px] border-t" style="color: secondaryLabel; border-color: separator" :text="flash()" testID="status-message" />
+    <Text :if="flash()" class="px-[28px] py-[6px] text-[12px] border-t" :style="{borderColor: colors().hairline}" style="color: secondaryLabel" :text="flash()" testID="status-message" />
   </View>
 
-  <View :if="signedIn() && nav().section === 'prompts'" class="flex-col shrink-0 w-[300px] border-r" :style="{backgroundColor: colors().detail, borderColor: 'separator'}" testID="prompts-pane">
-    <View class="flex-row gap-2 items-center pb-1 pt-4 px-4">
-      <Text class="flex-1 font-semibold text-[18px]" :numberOfLines="1" :text="title()" testID="list-title" />
+  <View :if="signedIn() && nav().section === 'prompts'" class="flex-col shrink-0 w-[300px] border-r" :style="{backgroundColor: colors().list, borderColor: 'separator'}" testID="prompts-pane">
+    <View class="flex-row gap-[8px] items-center pb-[2px] pt-[14px] px-[16px]">
+      <Text class="flex-1 font-bold text-[15px]" :numberOfLines="1" :text="title()" testID="list-title" />
       <ToolbarButton :if="library()?.owned" label="Share Library" symbol="person.crop.circle.badge.plus" testID="share-library" @click="openShare()" />
       <ToolbarButton :if="canEdit()" label="New Prompt" symbol="square.and.pencil" testID="new-prompt" @click="newPrompt()" />
     </View>
-    <Text class="pb-2 px-4 text-[11px]" style="color: secondaryLabel" :text="library()?.owned ? (library().library.description || 'Your library') : ('Shared by ' + (library()?.library.owner || 'someone') + (canEdit() ? ', you can edit' : ', view only'))" testID="library-role" />
-    <View class="pb-2 px-3"><TextInput type="search" class="h-[26px] text-[12px]" placeholder="Search prompts" :value="search()" @input="editSearch($event)" testID="search" /></View>
-    <View :if="offline()" class="pb-2 px-3" testID="offline-note">
-      <View class="flex-row gap-2 items-center px-3 py-[5px] rounded-[7px]" :style="{backgroundColor: colors().hover}">
-        <Icon symbol="wifi.slash" class="h-[13px] w-[13px]" style="color: secondaryLabel" />
-        <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Offline, showing saved items'" />
-      </View>
+    <Text class="pb-[8px] px-[16px] text-[12px]" style="color: secondaryLabel" :text="library()?.owned ? (library().library.description || 'Your library') : ('Shared by ' + (library()?.library.owner || 'someone') + (canEdit() ? ', you can edit' : ', view only'))" testID="library-role" />
+    <View class="pb-[6px] px-[12px]"><TextInput type="search" class="h-[26px] text-[13px]" placeholder="Search prompts" :value="search()" @input="editSearch($event)" testID="search" /></View>
+    <View :if="offline()" class="flex-row gap-[6px] items-center pb-[6px] px-[16px]" testID="offline-note">
+      <Icon symbol="wifi.slash" class="h-[12px] w-[12px]" style="color: secondaryLabel" />
+      <Text class="text-[12px]" style="color: secondaryLabel" :text="'Offline, showing saved items'" />
     </View>
     <ScrollView class="flex-1" testID="prompt-list">
-      <View class="flex-col gap-[1px] pb-4 px-2">
-        <KeptMacListRow :for="prompt in shownPrompts()" :key="prompt.id" :rowId="'prompt-' + prompt.id" :title="prompt.title" :subtitle="prompt.description || prompt.body" :meta="prompt.uses ? (prompt.uses === 1 ? '1 use' : prompt.uses + ' uses') : ''" :symbol="prompt.favorite ? 'star.fill' : ''" :selected="prompt.id === promptId()" :colors="colors()" @choose="choosePrompt(prompt)" @menu="promptMenu(prompt)" />
-        <Text :if="!shownPrompts().length" class="p-4 text-[12px]" style="color: secondaryLabel" :text="search() ? 'No prompts match.' : 'No prompts in this library yet.'" testID="prompts-empty" />
+      <View class="flex-col gap-[1px] pb-[12px] px-[8px]">
+        <KeptMacListRow :for="prompt in shownPrompts()" :key="prompt.id" :rowId="'prompt-' + prompt.id" :title="prompt.title" :subtitle="prompt.description || prompt.body" :meta="prompt.uses ? (prompt.uses === 1 ? '1 use' : prompt.uses + ' uses') : ''" :symbol="prompt.favorite ? 'star.fill' : ''" :selected="prompt.id === promptId()" :fill="colors().selection" @choose="choosePrompt(prompt)" @menu="promptMenu(prompt)" />
+        <Text :if="!shownPrompts().length" class="p-[16px] text-[12.5px]" style="color: secondaryLabel" :text="search() ? 'No prompts match.' : 'No prompts in this library yet.'" testID="prompts-empty" />
       </View>
     </ScrollView>
   </View>
 
   <View :if="signedIn() && nav().section === 'prompts'" class="flex-1 flex-col min-w-0" :style="{backgroundColor: colors().list}" testID="prompt-editor-pane">
-    <View :if="selectedPrompt()" class="flex-row gap-2 items-center px-4 h-[44px] border-b" style="border-color: separator">
-      <Text class="flex-1 text-[11.5px]" style="color: secondaryLabel" :text="selectedPrompt() ? 'Version ' + selectedPrompt().version + (pDirty() ? ', edited' : '') : ''" testID="prompt-version" />
+    <View :if="selectedPrompt()" class="flex-row gap-[6px] items-center px-[14px] h-[44px] border-b" :style="{borderColor: colors().hairline}">
+      <Text class="flex-1 text-[12px]" style="color: secondaryLabel" :text="selectedPrompt() ? 'Version ' + selectedPrompt().version + (pDirty() ? ', edited' : '') : ''" testID="prompt-version" />
       <Button :if="canEdit()" title="Save" :disabled="!pDirty()" testID="prompt-save" @click="savePrompt()" />
       <ToolbarButton label="Version History" symbol="clock.arrow.circlepath" testID="prompt-history" @click="openHistory()" />
       <ToolbarButton :if="canEdit()" label="Delete Prompt" symbol="trash" testID="prompt-delete" @click="deletePrompt()" />
       <Button title="Use" symbol="doc.on.clipboard" variant="primary" testID="prompt-use" @click="openUse()" />
     </View>
-    <View :if="selectedPrompt()" class="flex-1 flex-col gap-3 px-6 py-4">
-      <TextInput class="h-[30px] font-semibold text-[17px]" :value="pTitle()" :disabled="!canEdit()" placeholder="Prompt title" @input="editPrompt('title', $event)" testID="prompt-title" />
-      <TextInput class="h-[24px] text-[12.5px]" :value="pDesc()" :disabled="!canEdit()" placeholder="What it is for" @input="editPrompt('description', $event)" testID="prompt-description" />
-      <TextInput class="h-[24px] text-[12.5px]" :value="pTags()" :disabled="!canEdit()" placeholder="Tags, separated by commas" @input="editPrompt('tags', $event)" testID="prompt-tags" />
-      <TextInput class="flex-1 text-[13px]" :multiline="true" :value="pBody()" :disabled="!canEdit()" placeholder="Write the prompt. Put a variable in double braces where details go." @input="editPrompt('body', $event)" testID="prompt-body" />
-      <View class="flex-row gap-2 items-center" testID="prompt-variables">
-        <Text class="text-[11.5px]" style="color: secondaryLabel" :text="variables().length ? 'Variables' : 'No variables yet. Wrap a name in double braces to add one.'" />
+    <View :if="selectedPrompt()" class="flex-1 flex-col gap-[10px] px-[28px] py-[18px]">
+      <TextInput class="h-[30px] font-bold text-[20px]" :bordered="false" :value="pTitle()" :disabled="!canEdit()" placeholder="Prompt title" @input="editPrompt('title', $event)" @submit="savePrompt()" testID="prompt-title" />
+      <TextInput class="h-[22px] text-[13px]" :bordered="false" :value="pDesc()" :disabled="!canEdit()" placeholder="What it is for" @input="editPrompt('description', $event)" @submit="savePrompt()" testID="prompt-description" />
+      <TextInput class="h-[22px] text-[13px]" :bordered="false" :value="pTags()" :disabled="!canEdit()" placeholder="Tags, separated by commas" @input="editPrompt('tags', $event)" @submit="savePrompt()" testID="prompt-tags" />
+      <View class="h-[1px]" :style="{backgroundColor: colors().hairline}" />
+      <TextInput class="flex-1 text-[14px]" :multiline="true" :bordered="false" :value="pBody()" :disabled="!canEdit()" placeholder="Write the prompt. Put a variable in double braces where details go." :ghostText="ghostFor('prompt')" @input="editPrompt('body', $event)" @accept-completion="acceptGhost('prompt', $event)" testID="prompt-body" />
+      <View class="flex-row gap-[6px] items-center" testID="prompt-variables">
+        <Text class="text-[12px]" style="color: secondaryLabel" :text="variables().length ? 'Variables' : 'No variables yet. Wrap a name in double braces to add one.'" />
         <View :for="name in variables()" :key="name" class="justify-center px-[7px] h-[20px] rounded-[6px]" :style="{backgroundColor: colors().variableFill}">
-          <Text class="text-[11.5px]" :style="{color: colors().variable}" :text="name" />
+          <Text class="text-[12px]" :style="{color: colors().variable}" :text="name" />
         </View>
       </View>
     </View>
-    <View :if="!selectedPrompt()" class="flex-1 gap-2 items-center justify-center">
-      <Icon symbol="text.book.closed" class="h-[38px] w-[38px]" style="color: secondaryLabel" />
+    <View :if="!selectedPrompt()" class="flex-1 gap-[8px] items-center justify-center">
+      <Icon symbol="text.book.closed" class="h-[56px] w-[56px]" :style="{color: colors().hairline}" />
       <Text class="text-[13px]" style="color: secondaryLabel" :text="'Choose a prompt to read, edit or use.'" />
     </View>
-    <Text :if="flash()" class="px-5 py-2 text-[11.5px] border-t" style="color: secondaryLabel; border-color: separator" :text="flash()" testID="status-message" />
+    <Text :if="flash()" class="px-[28px] py-[6px] text-[12px]" style="color: secondaryLabel" :text="flash()" testID="status-message" />
   </View>
 
   <Modal :if="useOpen()" :visible="true" title="Use Prompt" testID="use-sheet">
-    <View class="flex-col gap-3 p-6">
-      <Text class="font-semibold text-[17px]" :text="selectedPrompt()?.title || 'Prompt'" />
-      <Text :if="!variables().length" class="text-[12px]" style="color: secondaryLabel" :text="'This prompt has no variables. Copy it as it is.'" />
-      <View :for="name in variables()" :key="name" class="flex-row gap-3 items-center">
-        <Text class="w-[110px] text-[12px]" :numberOfLines="1" :text="name" />
-        <View class="flex-1"><TextInput class="h-[24px] text-[12.5px]" :value="useValues()[name] || ''" :placeholder="name" @input="setVariable(name, $event)" :testID="'use-var-' + name" /></View>
+    <View class="flex-col gap-[12px] p-[24px]">
+      <Text class="font-bold text-[17px]" :text="selectedPrompt()?.title || 'Prompt'" />
+      <Text :if="!variables().length" class="text-[12.5px]" style="color: secondaryLabel" :text="'This prompt has no variables. Copy it as it is.'" />
+      <View :for="name in variables()" :key="name" class="flex-row gap-[12px] items-center">
+        <Text class="w-[110px] text-[12.5px]" :numberOfLines="1" :text="name" />
+        <View class="flex-1"><TextInput class="h-[24px] text-[13px]" :value="useValues()[name] || ''" :placeholder="name" @input="setVariable(name, $event)" @submit="copyFilled()" :testID="'use-var-' + name" /></View>
       </View>
-      <Text class="pt-1 font-semibold text-[11px]" style="color: secondaryLabel" :text="'PREVIEW'" />
-      <View class="p-3 rounded-[8px]" :style="{backgroundColor: colors().hover}">
-        <Text class="text-[12.5px]" :text="filled()" testID="use-preview" />
+      <Text class="pt-[4px] font-bold text-[11px]" style="color: secondaryLabel" :text="'PREVIEW'" />
+      <View class="p-[12px] rounded-[8px]" :style="{backgroundColor: colors().hover}">
+        <Text class="text-[13px]" :text="filled()" testID="use-preview" />
       </View>
-      <View class="flex-row gap-2 justify-end pt-1">
+      <View class="flex-row gap-[8px] justify-end pt-[4px]">
         <Button title="Cancel" testID="use-cancel" @click="useOpen.set(false)" />
         <Button title="Copy" symbol="doc.on.doc" variant="primary" testID="use-copy" @click="copyFilled()" />
       </View>
@@ -990,44 +1236,44 @@ onMount(async () => {
   </Modal>
 
   <Modal :if="historyOpen()" :visible="true" title="Version History" testID="history-sheet">
-    <View class="flex-col gap-3 p-6">
-      <Text class="font-semibold text-[17px]" :text="'Version history'" />
-      <Text :if="!versions().length" class="text-[12px]" style="color: secondaryLabel" :text="'No earlier versions.'" />
-      <View :for="version in versions()" :key="version.id" class="flex-row gap-3 items-start py-2 border-b" style="border-color: separator" :testID="'version-' + version.version">
+    <View class="flex-col gap-[12px] p-[24px]">
+      <Text class="font-bold text-[17px]" :text="'Version History'" />
+      <Text :if="!versions().length" class="text-[12.5px]" style="color: secondaryLabel" :text="'No earlier versions.'" />
+      <View :for="version in versions()" :key="version.id" class="flex-row gap-[12px] items-start py-[8px] border-b" :style="{borderColor: colors().hairline}" :testID="'version-' + version.version">
         <View class="flex-1 flex-col gap-[2px]">
-          <Text class="font-semibold text-[12.5px]" :text="'Version ' + version.version + (version.author ? ', by ' + version.author : '')" />
-          <Text class="text-[11.5px]" style="color: secondaryLabel" :numberOfLines="2" :text="version.body" />
+          <Text class="font-bold text-[13px]" :text="'Version ' + version.version + (version.author ? ', by ' + version.author : '')" />
+          <Text class="text-[12px]" style="color: secondaryLabel" :numberOfLines="2" :text="version.body" />
         </View>
         <Button :if="canEdit() && version.version !== selectedPrompt()?.version" title="Restore" :testID="'restore-' + version.version" @click="restoreVersion(version)" />
       </View>
-      <View class="flex-row justify-end pt-1"><Button title="Done" testID="history-done" @click="historyOpen.set(false)" /></View>
+      <View class="flex-row justify-end pt-[4px]"><Button title="Done" testID="history-done" @click="historyOpen.set(false)" /></View>
     </View>
   </Modal>
 
   <Modal :if="shareOpen()" :visible="true" title="Share Library" testID="share-sheet">
-    <View class="flex-col gap-3 p-6 min-h-[360px]">
-      <Text class="font-semibold text-[17px]" :text="'Share ' + title()" />
-      <View class="flex-row gap-2 items-center">
-        <View class="flex-1"><TextInput class="h-[24px] text-[12.5px]" :value="shareEmail()" placeholder="Email address" @input="shareEmail.set(eventText($event))" testID="share-email" /></View>
+    <View class="flex-col gap-[12px] p-[24px] min-h-[360px]">
+      <Text class="font-bold text-[17px]" :text="'Share ' + title()" />
+      <View class="flex-row gap-[8px] items-center">
+        <View class="flex-1"><TextInput class="h-[24px] text-[13px]" :value="shareEmail()" placeholder="Email address" @input="shareEmail.set(eventText($event))" @submit="invite()" testID="share-email" /></View>
         <View class="w-[100px]"><Picker :value="shareRole()" :options="[{value:'viewer',label:'Viewer'},{value:'editor',label:'Editor'}]" @change="shareRole.set(String(eventValue($event)))" testID="share-role" /></View>
         <Button title="Invite" variant="primary" :disabled="!shareEmail().trim()" testID="share-invite" @click="invite()" />
       </View>
-      <Text :if="!shares().people.length" class="text-[12px]" style="color: secondaryLabel" :text="'Nobody else has this library yet.'" />
-      <View :for="person in shares().people" :key="person.id" class="flex-row gap-2 items-center py-1" :testID="'share-person-' + person.id">
+      <Text :if="!shares().people.length" class="text-[12.5px]" style="color: secondaryLabel" :text="'Nobody else has this library yet.'" />
+      <View :for="person in shares().people" :key="person.id" class="flex-row gap-[8px] items-center py-[4px]" :testID="'share-person-' + person.id">
         <View class="flex-1 flex-col">
-          <Text class="text-[12.5px]" :numberOfLines="1" :text="person.name || person.email" />
-          <Text class="text-[11px]" style="color: secondaryLabel" :numberOfLines="1" :text="person.email + (person.accepted ? '' : ', invited')" />
+          <Text class="text-[13px]" :numberOfLines="1" :text="person.name || person.email" />
+          <Text class="text-[11.5px]" style="color: secondaryLabel" :numberOfLines="1" :text="person.email + (person.accepted ? '' : ', invited')" />
         </View>
-        <Text class="text-[11.5px]" style="color: secondaryLabel" :text="person.role === 'editor' ? 'Editor' : 'Viewer'" />
+        <Text class="text-[12px]" style="color: secondaryLabel" :text="person.role === 'editor' ? 'Editor' : 'Viewer'" />
         <ToolbarButton label="Remove access" symbol="xmark.circle" :testID="'share-remove-' + person.id" @click="removeShare(person)" />
       </View>
-      <View class="flex-row gap-2 items-center pt-2 border-t" style="border-color: separator">
+      <View class="flex-row gap-[8px] items-center pt-[8px] border-t" :style="{borderColor: colors().hairline}">
         <Switch :value="!!shares().link" @change="setLink($event)" testID="share-link-toggle" />
-        <Text class="flex-1 text-[12.5px]" :text="'Anyone with the link can view'" />
+        <Text class="flex-1 text-[13px]" :text="'Anyone with the link can view'" />
         <Button :if="linkUrl()" title="Copy Link" symbol="link" testID="share-copy-link" @click="copyLink()" />
       </View>
-      <Text :if="linkUrl()" class="text-[11px]" style="color: secondaryLabel" :text="linkUrl()" testID="share-link" />
-      <View class="flex-row justify-end pt-1"><Button title="Done" testID="share-done" @click="shareOpen.set(false)" /></View>
+      <Text :if="linkUrl()" class="text-[11.5px]" style="color: secondaryLabel" :text="linkUrl()" testID="share-link" />
+      <View class="flex-row justify-end pt-[4px]"><Button title="Done" testID="share-done" @click="shareOpen.set(false)" /></View>
     </View>
   </Modal>
 </View>
