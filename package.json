@@ -62,7 +62,7 @@
     "@stacksjs/actions": "^0.75.387",
     "@stacksjs/env": "^0.75.387",
     "@stacksjs/path": "^0.75.387",
-    "@stacksjs/stx": "0.2.765",
+    "@stacksjs/stx": "0.2.769",
     "bun-query-builder": "^0.3.32",
     "stacks": "^0.75.387"
   },
@@ -80,8 +80,8 @@
     "commit-msg": "bun x gitlint --edit \"$1\""
   },
   "devDependencies": {
-    "@stacksjs/components": "0.2.765",
+    "@stacksjs/components": "0.2.769",
     "better-dx": "^0.2.37",
-    "bun-plugin-stx": "0.2.765"
+    "bun-plugin-stx": "0.2.769"
   }
 }
