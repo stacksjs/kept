@@ -109,8 +109,9 @@ const variables = derived(() => promptVariables(pBody()))
 const filled = derived(() => fillPrompt(pBody(), useValues()))
 const linkUrl = derived(() => shares().link?.token ? shareLink(apiOrigin(), shares().link.token) : '')
 
-function marksFor(todo) {
-  return rowMarks(todo, view() ?? { kind: 'list', name: 'inbox' }, today(), projectTitle)
+/** A row inside a project block does not repeat the project's name. */
+function marksFor(todo, inProject = false) {
+  return rowMarks(todo, view() ?? { kind: 'list', name: 'inbox' }, today(), inProject ? undefined : projectTitle)
 }
 
 function say(text) {
@@ -567,14 +568,12 @@ async function newList() {
 // Notes
 
 let noteTimer = 0
-async function saveNote(extra = {}) {
-  const note = selectedNote()
-  clearTimeout(noteTimer)
-  if (!note || inTrash()) return
-  const body = noteBody()
-  if (body === note.body && !Object.keys(extra).length) return
+/** Typed text not saved yet, kept with the note it was typed into, so a save never lands on a note selected since. */
+let pendingNote = null
+
+async function writeNote(id, body, extra = {}) {
   try {
-    const saved = normalizeNote(await api.saveNote({ id: note.id, body, ...extra }))
+    const saved = normalizeNote(await api.saveNote({ id, body, ...extra }))
     notes.set(notes().map(n => (n.id === saved.id ? saved : n)))
     writeCache(account(), 'notes', notes())
   }
@@ -583,7 +582,19 @@ async function saveNote(extra = {}) {
 
 function flushNote() {
   clearTimeout(noteTimer)
-  if (selectedNote() && !inTrash() && noteBody() !== selectedNote().body) saveNote()
+  const pending = pendingNote
+  pendingNote = null
+  if (pending) return writeNote(pending.id, pending.body)
+}
+
+async function saveNote(extra = {}) {
+  const note = selectedNote()
+  if (!note || inTrash()) return
+  const pending = pendingNote?.id === note.id
+  clearTimeout(noteTimer)
+  pendingNote = null
+  if (!pending && noteBody() === note.body && !Object.keys(extra).length) return
+  await writeNote(note.id, noteBody(), extra)
 }
 
 function selectNote(note) {
@@ -594,9 +605,11 @@ function selectNote(note) {
 }
 
 function editNote(event) {
+  if (inTrash() || !noteId()) return
   noteBody.set(eventText(event))
+  pendingNote = { id: noteId(), body: noteBody() }
   clearTimeout(noteTimer)
-  noteTimer = setTimeout(() => saveNote(), 800)
+  noteTimer = setTimeout(() => flushNote(), 800)
   suggest('note', 'note', noteBody(), selectedNote()?.title ?? '')
 }
 
@@ -874,7 +887,8 @@ function suggest(field, kind, text, context) {
   if (!request) return
   ghostTimer = setTimeout(async () => {
     const completion = await requestCompletion(session, request)
-    if (seq === ghostSeq && completion) ghost.set({ field, text: completion })
+    // Shown exactly as it would be inserted, with the joining space, so the ghost reads as the next words.
+    if (seq === ghostSeq && completion) ghost.set({ field, text: acceptCompletion(text, completion).slice(text.length) })
   }, COMPLETION_DELAY)
 }
 
@@ -1040,7 +1054,7 @@ onMount(async () => {
           <View :if="b.kind === 'day' && !b.items.length" class="h-[26px]" />
 
           <View :for="todo in b.items" :key="todo.id" class="flex-col">
-            <KeptMacTodoRow :if="todo.id !== todoId()" :item="todo" :marks="marksFor(todo)" :selected="false" :colors="colors()" @choose="openTodo(todo)" @toggle="toggleTodo(todo)" @menu="todoMenu(todo)" />
+            <KeptMacTodoRow :if="todo.id !== todoId()" :item="todo" :marks="marksFor(todo, b.kind === 'project')" :selected="false" :colors="colors()" @choose="openTodo(todo)" @toggle="toggleTodo(todo)" @menu="todoMenu(todo)" />
             <View :if="todo.id === todoId()" class="flex-col gap-[4px] my-[10px] pb-[8px] pt-[10px] px-[12px] border rounded-[12px]" :style="{backgroundColor: colors().card, borderColor: colors().hairline}" testID="todo-editor">
               <View class="flex-row gap-[9px] items-center">
                 <Pressable class="items-center justify-center shrink-0 h-[14px] w-[14px] border rounded-[3px]" :style="{borderColor: todo.completed_at ? colors().accent : colors().checkbox, backgroundColor: todo.completed_at ? colors().accent : 'transparent'}" testID="detail-check" @click="toggleTodo(todo)">
@@ -1119,7 +1133,7 @@ onMount(async () => {
         <Text class="font-bold text-[15px]" :numberOfLines="1" :text="title()" testID="list-title" />
         <Text class="text-[12px]" style="color: secondaryLabel" :text="noteCount() === 1 ? '1 note' : noteCount() + ' notes'" testID="note-count" />
       </View>
-      <ToolbarButton :if="!inTrash()" label="New Note" symbol="square.and.pencil" testID="new-note" @click="newNote()" />
+      <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="New Note" symbol="square.and.pencil" testID="new-note" @click="newNote()" />
     </View>
     <View class="pb-[6px] px-[12px]"><TextInput type="search" class="h-[26px] text-[13px]" placeholder="Search" :value="search()" @input="editSearch($event)" testID="search" /></View>
     <View :if="offline()" class="flex-row gap-[6px] items-center pb-[6px] px-[16px]" testID="offline-note">
@@ -1140,15 +1154,15 @@ onMount(async () => {
 
   <View :if="signedIn() && nav().section === 'notes'" class="flex-1 flex-col min-w-0" :style="{backgroundColor: colors().list}" testID="note-editor-pane">
     <View class="flex-row gap-[4px] items-center px-[14px] h-[44px] border-b" :style="{borderColor: colors().hairline}">
-      <ToolbarButton :if="!inTrash()" label="Format" symbol="textformat" :disabled="!selectedNote()" testID="note-format" @click="formatMenu()" />
-      <ToolbarButton :if="!inTrash()" label="Checklist" symbol="checklist" :disabled="!selectedNote()" testID="note-checklist" @click="setNoteBody(appendCheckLine(noteBody()))" />
-      <ToolbarButton :if="!inTrash()" :label="selectedNote()?.pinned ? 'Unpin' : 'Pin'" :symbol="selectedNote()?.pinned ? 'pin.slash' : 'pin'" :disabled="!selectedNote()" testID="note-pin" @click="togglePin()" />
+      <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="Format" symbol="textformat" :disabled="!selectedNote()" testID="note-format" @click="formatMenu()" />
+      <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="Checklist" symbol="checklist" :disabled="!selectedNote()" testID="note-checklist" @click="setNoteBody(appendCheckLine(noteBody()))" />
+      <ToolbarButton style="color: #8e8e93" :if="!inTrash()" :label="selectedNote()?.pinned ? 'Unpin' : 'Pin'" :symbol="selectedNote()?.pinned ? 'pin.slash' : 'pin'" :disabled="!selectedNote()" testID="note-pin" @click="togglePin()" />
       <View class="flex-1" />
       <Text :if="selectedNote()" class="text-[12px]" style="color: secondaryLabel" :text="inTrash() ? 'In Recently Deleted' : 'Edited ' + noteStamp(selectedNote().updated_at)" />
       <View class="flex-1" />
       <Button :if="inTrash() && selectedNote()" title="Recover" testID="note-restore" @click="restoreNote()" />
       <ToolbarButton style="color: #9a9aa0" label="Delete" symbol="trash" :disabled="!selectedNote()" testID="note-delete" @click="deleteNote()" />
-      <ToolbarButton :if="!inTrash()" label="New Note" symbol="square.and.pencil" testID="note-new" @click="newNote()" />
+      <ToolbarButton style="color: #8e8e93" :if="!inTrash()" label="New Note" symbol="square.and.pencil" testID="note-new" @click="newNote()" />
     </View>
     <View :if="selectedNote()" class="flex-1 flex-col pt-[18px] px-[28px]">
       <TextInput class="flex-1 text-[15px]" :multiline="true" :bordered="false" :disabled="inTrash()" :value="noteBody()" placeholder="Start writing" :ghostText="ghostFor('note')" @input="editNote($event)" @blur="flushNote()" @accept-completion="acceptGhost('note', $event)" testID="note-editor" />
@@ -1171,8 +1185,8 @@ onMount(async () => {
   <View :if="signedIn() && nav().section === 'prompts'" class="flex-col shrink-0 w-[300px] border-r" :style="{backgroundColor: colors().list, borderColor: 'separator'}" testID="prompts-pane">
     <View class="flex-row gap-[8px] items-center pb-[2px] pt-[14px] px-[16px]">
       <Text class="flex-1 font-bold text-[15px]" :numberOfLines="1" :text="title()" testID="list-title" />
-      <ToolbarButton :if="library()?.owned" label="Share Library" symbol="person.crop.circle.badge.plus" testID="share-library" @click="openShare()" />
-      <ToolbarButton :if="canEdit()" label="New Prompt" symbol="square.and.pencil" testID="new-prompt" @click="newPrompt()" />
+      <ToolbarButton style="color: #8e8e93" :if="library()?.owned" label="Share Library" symbol="person.crop.circle.badge.plus" testID="share-library" @click="openShare()" />
+      <ToolbarButton style="color: #8e8e93" :if="canEdit()" label="New Prompt" symbol="square.and.pencil" testID="new-prompt" @click="newPrompt()" />
     </View>
     <Text class="pb-[8px] px-[16px] text-[12px]" style="color: secondaryLabel" :text="library()?.owned ? (library().library.description || 'Your library') : ('Shared by ' + (library()?.library.owner || 'someone') + (canEdit() ? ', you can edit' : ', view only'))" testID="library-role" />
     <View class="pb-[6px] px-[12px]"><TextInput type="search" class="h-[26px] text-[13px]" placeholder="Search prompts" :value="search()" @input="editSearch($event)" testID="search" /></View>
@@ -1192,8 +1206,8 @@ onMount(async () => {
     <View :if="selectedPrompt()" class="flex-row gap-[6px] items-center px-[14px] h-[44px] border-b" :style="{borderColor: colors().hairline}">
       <Text class="flex-1 text-[12px]" style="color: secondaryLabel" :text="selectedPrompt() ? 'Version ' + selectedPrompt().version + (pDirty() ? ', edited' : '') : ''" testID="prompt-version" />
       <Button :if="canEdit()" title="Save" :disabled="!pDirty()" testID="prompt-save" @click="savePrompt()" />
-      <ToolbarButton label="Version History" symbol="clock.arrow.circlepath" testID="prompt-history" @click="openHistory()" />
-      <ToolbarButton :if="canEdit()" label="Delete Prompt" symbol="trash" testID="prompt-delete" @click="deletePrompt()" />
+      <ToolbarButton style="color: #8e8e93" label="Version History" symbol="clock.arrow.circlepath" testID="prompt-history" @click="openHistory()" />
+      <ToolbarButton style="color: #8e8e93" :if="canEdit()" label="Delete Prompt" symbol="trash" testID="prompt-delete" @click="deletePrompt()" />
       <Button title="Use" symbol="doc.on.clipboard" variant="primary" testID="prompt-use" @click="openUse()" />
     </View>
     <View :if="selectedPrompt()" class="flex-1 flex-col gap-[10px] px-[28px] py-[18px]">
@@ -1251,7 +1265,7 @@ onMount(async () => {
   </Modal>
 
   <Modal :if="shareOpen()" :visible="true" title="Share Library" testID="share-sheet">
-    <View class="flex-col gap-[12px] p-[24px] min-h-[360px]">
+    <View class="flex-col gap-[12px] p-[24px]">
       <Text class="font-bold text-[17px]" :text="'Share ' + title()" />
       <View class="flex-row gap-[8px] items-center">
         <View class="flex-1"><TextInput class="h-[24px] text-[13px]" :value="shareEmail()" placeholder="Email address" @input="shareEmail.set(eventText($event))" @submit="invite()" testID="share-email" /></View>
