@@ -66,3 +66,68 @@ what was tried and what happened, so it can be fixed at the source.
   becomes `undefined`; keep such strings in a TypeScript module.
 - The test driver's screenshot covers the window's content view only; a sheet shows
   as the dimmed parent. `screencapture -l <window id>` captures it.
+
+## Framework (what was missing in Stacks, stx, Craft and Pantry, and what landed)
+
+Found while making the Mac app a build target. Each entry says what was wrong and
+where it was fixed (the fix is at the source, never in this app).
+
+- **No declarative desktop target** (stacks). `config/mobile.ts` described phone
+  apps; a native Mac app was a hand-written script (Attic's `build-native.ts` and
+  `build-app.ts`). Fixed: `config/desktop.ts` (`DesktopConfig` in `@stacksjs/types`),
+  `buddy build:desktop` / `buddy dev:desktop` build and open the AppKit app,
+  `buddy desktop:apple:package` makes the sandboxed Store package from the same config.
+- **Toolchain pinned by hand** (craft). The AppKit host needs the pinned Zig and the
+  zig-js engine; every app copied a lock file and fetched them with sparse git.
+  Fixed: `craft-native/macos` resolves them itself (`resolveMacOSToolchain`): Pantry
+  installs the exact Zig (it mirrors the dev build), zig-js is fetched at its pinned
+  revision and built once into `~/.cache/craft/toolchain`.
+- **The host needed a local agent** (craft). It refused to start unless
+  `/native/session` answered. Fixed: `--no-session`, and a bundled app reads
+  `Contents/Resources/craft-app.json`, so Finder can launch it with no arguments.
+- **No Keychain, no session** (craft). `craft.secureStorage`/`craft.session` did not
+  exist on the Mac host. Fixed: Keychain-backed `SecureStorage`, `getSync`, and
+  `SESSION_CHANGED` across windows; the data-protection keychain is chosen from the
+  app's entitlements, not from a failure (a failure-based fallback lost the token on relaunch).
+- **Single-line inputs fired no submit or blur** (craft). Fixed.
+- **No strike-through, no ghost text, File menu last** (craft). Fixed: `line-through`
+  and `underline` on Text; `ghostText` + `accept-completion` on a multi-line TextInput
+  (stx knows the prop and event from 0.2.763); a `File` menu is placed first.
+- **A Keychain prompt hung the launch of every rebuilt app** (craft, stacks). An ad hoc
+  signature changes with each build and the Keychain item trusts the code that wrote it,
+  so the next launch stopped on a prompt with no window. Neither `LAContext` nor
+  `kSecUseAuthenticationUI` stops a login-keychain prompt; `SecKeychainSetUserInteractionAllowed(false)`
+  around the read does (reproduced with an item whose access list trusts no one). Fixed
+  in the host, and `build:desktop` now signs with the Mac's Apple Development identity so
+  rebuilds stay trusted.
+- **Text editing was end-of-text only** (craft, stx). A multi-line TextInput had no caret.
+  Fixed: `onSelectionChange` / `selection`, a `markdown` styling mode (headings, bold,
+  italic, code, quotes, checklists drawn as Notes would), `ghostText` at the caret, and
+  the driver's `key` action (return, tab, escape, arrows) so handlers can be tested.
+- **No Escape, no real shadow, fixed sidebar rows** (craft). Fixed: Escape arrives as the
+  desktop command `escape`; `shadow-*` draws a layer shadow; `NativeSidebar` takes
+  `rowHeight` and `labelFontSize`; a transparent title bar runs content under it.
+- **Cross-axis margins ignored, shrink-wrapped Text clipped, sheets sized once** (craft). Fixed, with
+  layout fixture checks.
+- **The web server could not render native primitives** (stx). `<View>` answered
+  `component "view" could not be resolved`. Fixed: the primitives resolve as components
+  of last resort (`nativePrimitives` in stx config, on by default; an app's own
+  component, a plugin's, and the shared Button/Checkbox/Switch/TextInput/Image/Video
+  win). One view source can now be a web page and a native screen.
+- **ts-pantry's native pipeline rejected an AppKit app** (pantry). It required
+  `index.html` and `craft.json`, and a `--benchmark` run. Fixed: a bundle with
+  `native-screen.js` and `craft-app.json` is a valid native app, checked with `--version`.
+
+Still open:
+
+- `config/desktop.ts` has no `menus` or `sidebar` section: menus are set by the screen
+  with `craft.desktop.setMenus`, and the sidebar is the `NativeSidebar` primitive. A
+  declarative menu bar would need the host to read it before any screen runs.
+- No global quick-entry window: Craft has no global hotkey or non-activating panel on
+  the Mac host (a global shortcut needs Accessibility, which the sandbox does not allow
+  without a user prompt). Quick entry is a field in the window and Cmd+N.
+- `--universal` is not supported for the native app (the host is built for the build
+  machine's architecture).
+- `NativeSidebar` selects one level of items; an area with projects below it is a
+  header with items, not a selectable parent.
+- The AppKit host has no DatePicker; dates are typed.
