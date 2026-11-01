@@ -89,6 +89,11 @@ jobs:
   test:
     runs-on: ${{ matrix.os }}
 
+    # The root migration corpus is SQLite and the runner has no MySQL server;
+    # a local `.env` pointing at pantry's MySQL never exists on a fresh checkout.
+    env:
+      DB_CONNECTION: sqlite
+
     strategy:
       matrix:
         os: [ubuntu-latest]
