@@ -6,8 +6,8 @@ export interface ListedTodo {
   when: string
   start_date: string | null
   deadline: string | null
-  completed_at: string | null
-  canceled_at: string | null
+  completed_at: string | number | null
+  canceled_at: string | number | null
   project_id?: number | null
   area_id?: number | null
 }

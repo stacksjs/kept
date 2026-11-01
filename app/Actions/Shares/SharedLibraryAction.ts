@@ -12,7 +12,7 @@ export default new Action({
     const library = await PromptLibrary.where('shareToken', token).first()
     if (!library) return response.json({ error: 'Link not found' }, 404)
     const owner = await User.find(Number(library.user_id))
-    const prompts = await Prompt.where('promptLibraryId', Number(library.id)).orderBy('title').get()
+    const prompts = await Prompt.where('prompt_library_id', Number(library.id)).orderBy('title').get()
     return response.json({
       library: { title: library.title, description: library.description, icon: library.icon, color: library.color, owner: owner?.name ?? '' },
       prompts: prompts.map(p => ({ id: p.id, title: p.title, description: p.description, body: p.body, model: p.model, tags: parseTags(p.tags), variables: promptVariables(String(p.body ?? '')) })),

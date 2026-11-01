@@ -12,7 +12,7 @@ export default new Action({
     const body = String(request.get('body') ?? '').slice(0, 200000)
     const { title, snippet } = noteTitleAndSnippet(body)
     const folderId = request.get('note_folder_id') ? Number(request.get('note_folder_id')) : null
-    if (folderId && !await NoteFolder.where('id', folderId).where('userId', who.user.id).first())
+    if (folderId && !await NoteFolder.where('id', folderId).where('user_id', who.user.id).first())
       return response.json({ error: 'Folder not found' }, 404)
 
     const id = idParam(request)
@@ -20,7 +20,7 @@ export default new Action({
       const note = await Note.create({ body, title, snippet, pinned: Boolean(request.get('pinned')), noteFolderId: folderId, userId: who.user.id })
       return response.json({ note: note.toJSON() }, 201)
     }
-    const note = await Note.where('id', id).where('userId', who.user.id).first()
+    const note = await Note.where('id', id).where('user_id', who.user.id).first()
     if (!note) return response.json({ error: 'Note not found' }, 404)
     const changes: Record<string, unknown> = { body, title, snippet }
     if (request.get('pinned') !== undefined) changes.pinned = Boolean(request.get('pinned'))

@@ -13,7 +13,7 @@ export default new Action({
     const who = await signedIn(request)
     if ('error' in who) return who.error
     const id = idParam(request)
-    const todo = id ? await Todo.where('id', id).where('userId', who.user.id).first() : undefined
+    const todo = id ? await Todo.where('id', id).where('user_id', who.user.id).first() : undefined
     if (!todo) return response.json({ error: 'To-do not found' }, 404)
 
     const now = new Date().toISOString().slice(0, 19).replace('T', ' ')

@@ -15,13 +15,13 @@ export default new Action({
     const today = dayOrToday(request.get('today'))
 
     const rows = list === 'logbook'
-      ? await Todo.where('userId', who.user.id).orderByDesc('updatedAt').limit(500).get()
-      : await Todo.where('userId', who.user.id).whereNull('completedAt').whereNull('canceledAt').get()
+      ? await Todo.where('user_id', who.user.id).orderByDesc('updated_at').limit(500).get()
+      : await Todo.where('user_id', who.user.id).whereNull('completedAt').whereNull('canceledAt').get()
     const todos = inList(rows.map(row => row.toJSON()), list, today)
     if (list !== 'upcoming' && list !== 'logbook') todos.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)
 
     const ids = todos.map(todo => todo.id)
-    const checklist = ids.length ? await ChecklistItem.whereIn('todoId', ids).orderBy('sortOrder').get() : []
+    const checklist = ids.length ? await ChecklistItem.whereIn('todo_id', ids).orderBy('sortOrder').get() : []
     const items = new Map<number, Array<Record<string, unknown>>>()
     for (const item of checklist.map(row => row.toJSON())) items.set(item.todo_id, [...(items.get(item.todo_id) ?? []), item])
 

@@ -13,7 +13,7 @@ export default new Action({
     const prompt = id ? await Prompt.find(id) : undefined
     const access = prompt ? await libraryRole(Number(prompt.prompt_library_id), who.user) : null
     if (!prompt || !access) return response.json({ error: 'Prompt not found' }, 404)
-    const versions = await PromptVersion.where('promptId', Number(prompt.id)).orderByDesc('version').get()
+    const versions = await PromptVersion.where('prompt_id', Number(prompt.id)).orderByDesc('version').get()
     const authors = versions.length ? await User.whereIn('id', [...new Set(versions.map(v => Number(v.user_id)))]).get() : []
     const names = new Map(authors.map(a => [Number(a.id), a.name]))
     return response.json({ versions: versions.map(v => ({ ...v.toJSON(), author: names.get(Number(v.user_id)) ?? '' })) })

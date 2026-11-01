@@ -14,12 +14,12 @@ export default new Action({
     const today = dayOrToday(request.get('today'))
 
     const [todos, areas, projects, folders, notes, owned] = await Promise.all([
-      Todo.where('userId', userId).whereNull('completedAt').whereNull('canceledAt').get(),
-      Area.where('userId', userId).orderBy('sortOrder').get(),
-      Project.where('userId', userId).whereNull('completedAt').whereNull('canceledAt').orderBy('sortOrder').get(),
-      NoteFolder.where('userId', userId).orderBy('sortOrder').get(),
-      Note.where('userId', userId).get(),
-      PromptLibrary.where('userId', userId).orderBy('sortOrder').get(),
+      Todo.where('user_id', userId).whereNull('completedAt').whereNull('canceledAt').get(),
+      Area.where('user_id', userId).orderBy('sortOrder').get(),
+      Project.where('user_id', userId).whereNull('completedAt').whereNull('canceledAt').orderBy('sortOrder').get(),
+      NoteFolder.where('user_id', userId).orderBy('sortOrder').get(),
+      Note.where('user_id', userId).get(),
+      PromptLibrary.where('user_id', userId).orderBy('sortOrder').get(),
     ])
     const open = todos.map(todo => todo.toJSON())
     const perProject = new Map<number, number>()

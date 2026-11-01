@@ -4,6 +4,11 @@ import { formatRoute, HOME, panelFor, parentOf, parseRoute, type Route, withItem
 import type { Area, LibraryList, NoteFolder, Project, SidebarData } from '../functions/library/types'
 import type { View } from '../functions/library/todos'
 
+/** What this store reads off its siblings; `useStore` hands back the store typed as unknown. */
+interface TasksStore { today: () => string, load: () => Promise<void> }
+interface NotesStore { load: () => Promise<void> }
+const sibling = <T>(name: string): T => useStore(name) as unknown as T
+
 export interface Toast { id: number, text: string, tone: 'info' | 'error' }
 
 /**
@@ -56,7 +61,7 @@ defineStore('workspace', () => {
   const back = (): void => go(parentOf(route()))
 
   async function loadSidebar(): Promise<void> {
-    const [side, libs] = await Promise.all([api.sidebar(useStore('tasks').today()), api.libraries()])
+    const [side, libs] = await Promise.all([api.sidebar(sibling<TasksStore>('tasks').today()), api.libraries()])
     sidebar.set(side)
     libraries.set(libs)
     loaded.set(true)
@@ -120,7 +125,7 @@ defineStore('workspace', () => {
     try {
       await api.deleteArea(id)
       if (route().section === 'todos' && (route() as { view: View }).view.kind === 'area' && ((route() as { view: { id: number } }).view.id === id)) go({ section: 'todos', view: { kind: 'list', name: 'inbox' }, item: null })
-      await Promise.all([reloadSidebar(), useStore('tasks').load()])
+      await Promise.all([reloadSidebar(), sibling<TasksStore>('tasks').load()])
     }
     catch (cause) { fail(cause, 'Could not delete the area.') }
   }
@@ -130,7 +135,7 @@ defineStore('workspace', () => {
       await api.deleteProject(id)
       const r = route()
       if (r.section === 'todos' && r.view.kind === 'project' && r.view.id === id) go({ section: 'todos', view: { kind: 'list', name: 'inbox' }, item: null })
-      await Promise.all([reloadSidebar(), useStore('tasks').load()])
+      await Promise.all([reloadSidebar(), sibling<TasksStore>('tasks').load()])
     }
     catch (cause) { fail(cause, 'Could not delete the project.') }
   }
@@ -162,7 +167,7 @@ defineStore('workspace', () => {
       await api.deleteNoteFolder(id)
       const r = route()
       if (r.section === 'notes' && r.folder === id) go({ section: 'notes', folder: 'all', item: null })
-      await Promise.all([reloadSidebar(), useStore('notes').load()])
+      await Promise.all([reloadSidebar(), sibling<NotesStore>('notes').load()])
     }
     catch (cause) { fail(cause, 'Could not delete the folder.') }
   }

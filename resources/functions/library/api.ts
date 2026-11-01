@@ -25,7 +25,7 @@ export interface ApiOptions {
   /** Origin of the Library server, e.g. `https://library.stacksjs.com`. Empty for same-origin web. */
   base?: string
   session: Session
-  fetch?: typeof fetch
+  fetch?: (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>
   /** Called when the server says the token is no longer good. */
   onSignedOut?: () => void
 }

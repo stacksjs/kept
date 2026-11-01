@@ -11,7 +11,7 @@ export default new Action({
     if ('error' in who) return who.error
     await claimPendingShares(who.user)
 
-    const owned = await PromptLibrary.where('userId', who.user.id).orderBy('sortOrder').get()
+    const owned = await PromptLibrary.where('user_id', who.user.id).orderBy('sortOrder').get()
     const shares = await Share.where('resourceType', 'library').where('sharedWithUserId', who.user.id).get()
     const sharedLibraries = shares.length ? await PromptLibrary.whereIn('id', shares.map(s => Number(s.resource_id))).get() : []
     const owners = sharedLibraries.length ? await User.whereIn('id', [...new Set(sharedLibraries.map(l => Number(l.user_id)))]).get() : []
@@ -20,7 +20,7 @@ export default new Action({
 
     const counts = new Map<number, number>()
     const everyId = [...owned, ...sharedLibraries].map(l => Number(l.id))
-    for (const prompt of everyId.length ? await Prompt.whereIn('promptLibraryId', everyId).get() : [])
+    for (const prompt of everyId.length ? await Prompt.whereIn('prompt_library_id', everyId).get() : [])
       counts.set(Number(prompt.prompt_library_id), (counts.get(Number(prompt.prompt_library_id)) ?? 0) + 1)
 
     return response.json({

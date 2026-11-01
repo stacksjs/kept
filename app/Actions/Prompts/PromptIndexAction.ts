@@ -22,11 +22,11 @@ export default new Action({
       role = access.role
     }
     else {
-      const owned = await PromptLibrary.where('userId', who.user.id).get()
+      const owned = await PromptLibrary.where('user_id', who.user.id).get()
       const shares = await Share.where('resourceType', 'library').where('sharedWithUserId', who.user.id).get()
       libraryIds = [...owned.map(l => Number(l.id)), ...shares.map(s => Number(s.resource_id))]
     }
-    const rows = libraryIds.length ? await Prompt.whereIn('promptLibraryId', libraryIds).orderByDesc('updatedAt').get() : []
+    const rows = libraryIds.length ? await Prompt.whereIn('prompt_library_id', libraryIds).orderByDesc('updated_at').get() : []
     const prompts = rows.map(p => p.toJSON()).filter((p) => {
       if (request.get('favorites') && !p.favorite) return false
       if (!search) return true
