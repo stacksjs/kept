@@ -8,6 +8,8 @@ const signedIn = state(!!session.token())
 const scheme = state(nativeCraft().appearance.colorScheme())
 const note = state('')
 const busy = state(false)
+const confirmEmail = state('')
+const canDelete = derived(() => !busy() && !!account()?.email && confirmEmail().trim().toLowerCase() === String(account()?.email).toLowerCase())
 const version = nativeCraft().app.version
 
 async function load() {
@@ -31,6 +33,21 @@ async function signOut() {
     signedIn.set(false)
     note.set('Signed out. Sign in again from the main window.')
   }
+}
+
+async function deleteAccount() {
+  busy.set(true)
+  try {
+    await api.deleteAccount(confirmEmail().trim())
+    session.save(null)
+    saveAccount(null)
+    account.set(null)
+    signedIn.set(false)
+    confirmEmail.set('')
+    note.set('Your account and everything in it were deleted.')
+  }
+  catch (error) { note.set(error?.message || 'Could not delete your account. Try again.') }
+  finally { busy.set(false) }
 }
 
 onMount(async () => {
@@ -69,6 +86,14 @@ onMount(async () => {
     <Text class="font-semibold text-[11px]" style="color: secondaryLabel" :text="'APPEARANCE'" />
     <Text class="text-[12.5px]" :text="'Library follows your Mac, now ' + (scheme() === 'dark' ? 'Dark' : 'Light') + '.'" testID="settings-appearance" />
     <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Change it in System Settings, Appearance.'" />
+  </View>
+  <View :if="signedIn() && account()" class="flex-col gap-2 pt-4 border-t" style="border-color: separator">
+    <Text class="font-semibold text-[11px]" style="color: secondaryLabel" :text="'DELETE ACCOUNT'" />
+    <Text class="text-[11.5px]" style="color: secondaryLabel" :text="'Permanently deletes your account, to-dos, notes and prompt libraries from the server. This cannot be undone. Type your email address to confirm.'" />
+    <View class="flex-row gap-3 items-center">
+      <View class="flex-1"><TextInput x-model="confirmEmail" placeholder="Your email address" class="h-[28px]" testID="settings-delete-email" /></View>
+      <Button title="Delete Account" :disabled="!canDelete()" testID="settings-delete" @click="deleteAccount()" />
+    </View>
   </View>
   <View class="flex-1" />
   <Text :if="note()" class="text-[11.5px]" style="color: secondaryLabel" :text="note()" testID="settings-note" />

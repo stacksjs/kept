@@ -1,0 +1,22 @@
+@extends('shell')
+@section('content')
+<script server>
+useHead({ title: 'Support - Library' })
+</script>
+<main class="k-doc" style="max-width: 720px; margin: 0 auto; padding: 48px 20px 96px; line-height: 1.6">
+  <p><a href="/" style="color: var(--accent-text); font-weight: 600">Library</a></p>
+  <h1 style="font-size: 32px; letter-spacing: -.02em; margin: 8px 0 4px">Support</h1>
+  <p class="k-sub">Tasks, notes and prompts in one calm place.</p>
+
+  <h2>Get help</h2>
+  <p>Email <a href="mailto:chris@stacksjs.com" style="color: var(--accent-text); font-weight: 600">chris@stacksjs.com</a> with what you were doing and what happened, and which device you use. Library is open source, so you can also report a problem or read the code at <a href="https://github.com/stacksjs/library" style="color: var(--accent-text); font-weight: 600">github.com/stacksjs/library</a>.</p>
+
+  <h2>Your account</h2>
+  <ul>
+    <li>Sign in, or create an account, at <a href="/login" style="color: var(--accent-text); font-weight: 600">library.stacksjs.com/login</a>. The Mac app and the website use the same account.</li>
+    <li>To delete your account and everything in it, use Settings in the Mac app, or <a href="/delete-account" style="color: var(--accent-text); font-weight: 600">the delete account page</a>.</li>
+  </ul>
+
+  <p><a href="/privacy" style="color: var(--accent-text); font-weight: 600">Privacy Policy</a></p>
+</main>
+@endsection

@@ -1,0 +1,54 @@
+@extends('shell')
+@section('content')
+<script server>
+useHead({ title: 'Delete your account - Library' })
+</script>
+<script client>
+  import { api, session, go } from '../functions/library/client'
+
+  const daEmail = state('')
+  const daError = state('')
+  const daBusy = state(false)
+  const daDone = state(false)
+
+  async function daSubmit(event) {
+    event.preventDefault()
+    daError.set('')
+    daBusy.set(true)
+    try {
+      await api.deleteAccount(daEmail().trim())
+      session.save(null)
+      daDone.set(true)
+    }
+    catch (cause) {
+      daError.set(cause && cause.status === 401 ? 'Sign in first, then come back to this page.' : (cause && cause.message) || 'We could not delete the account.')
+    }
+    finally { daBusy.set(false) }
+  }
+</script>
+<main class="k-auth">
+  <div class="k-auth-card">
+    <h1>Delete your account</h1>
+
+    <div :if="daDone()">
+      <p class="k-sub" style="font-size: 15px">Your account and everything in it were deleted.</p>
+      <p><a href="/" style="color: var(--accent-text); font-weight: 600">Back to Library</a></p>
+    </div>
+
+    <div :if="!daDone()">
+      <p class="k-sub" style="margin: 0 0 22px; font-size: 15px">This permanently deletes your account, to-dos, notes and prompt libraries from the server. It cannot be undone. You need to be signed in. Type your email address to confirm.</p>
+      <form @submit="daSubmit($event)" novalidate>
+        <div class="k-field">
+          <label class="k-label" for="da-email">Email</label>
+          <input id="da-email" class="k-input" type="email" autocomplete="email" inputmode="email" x-model="daEmail">
+        </div>
+        <p class="k-err" role="alert" :if="daError()" :text="daError()"></p>
+        <button type="submit" class="k-btn k-btn-danger" style="width: 100%; margin-top: 16px; min-height: 44px" :disabled="daBusy() || !daEmail()">
+          <span :text="daBusy() ? 'One moment' : 'Delete my account'"></span>
+        </button>
+      </form>
+      <p class="k-sub" style="margin-top: 20px; text-align: center"><a href="/app" style="color: var(--accent-text); font-weight: 600">Cancel</a></p>
+    </div>
+  </div>
+</main>
+@endsection

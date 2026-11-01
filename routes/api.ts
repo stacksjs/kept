@@ -35,6 +35,7 @@ route.get('/hello', () => response.text('hello world'))
 // Library: smart lists, completing and reopening to-dos, notes, and prompt libraries.
 // The generated CRUD routes (todos, projects, areas, ...) come from each model's
 // `useApi` trait; these are the ones with rules of their own.
+route.post('/account/delete', 'Actions/Account/AccountDeleteAction').middleware('auth')
 route.get('/sidebar', 'Actions/Lists/SidebarAction').middleware('auth')
 route.get('/lists/{list}', 'Actions/Lists/ListShowAction').middleware('auth')
 route.post('/todos/{id}/complete', 'Actions/Todos/CompleteTodoAction').middleware('auth')

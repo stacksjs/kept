@@ -90,6 +90,7 @@ export function createApi(options: ApiOptions) {
     async signOut() {
       try { await post('/logout') } finally { options.session.save(null) }
     },
+    deleteAccount: (email: string) => post<{ deleted: boolean }>('/api/account/delete', { email }),
     me: () => get<{ id: number, email: string, name: string }>('/me'),
 
     // Lists
