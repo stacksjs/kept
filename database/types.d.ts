@@ -366,8 +366,8 @@ declare module '@stacksjs/database' {
     categorizable_models: {
       // columns
       id: number
-      category_id: number
       categorizable_id: number
+      category_id: number
       categorizable_type: string
       created_at: string
       updated_at: string | null
