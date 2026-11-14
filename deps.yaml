@@ -8,7 +8,7 @@ dependencies:
   bun: 1.4.4
   curl: ^8.22.0
   git: ^2.47.0
-  github.com/mail-os/mail: ^0.3.2
+  github.com/mail-os/mail: ^0.3.10
   mysql.com: ^9.2
 
 services:
